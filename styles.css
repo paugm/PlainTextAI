@@ -1,0 +1,472 @@
+@import url("https://fonts.googleapis.com/css2?family=VT323&display=swap");
+
+:root {
+    --primary-color: #5436da;
+    --secondary-color: #11a37f;
+    --background-color: #f7f7f8;
+    --text-color: #353740;
+    --card-background: #ffffff;
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --input-border: #d1d5db;
+    --input-focus: #5436da;
+}
+
+body {
+    font-family: "Söhne", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 1rem 0;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+}
+
+.logo-icon {
+    margin-right: 10px;
+    stroke-width: 1.5;
+    width: 48px;
+    height: 48px;
+}
+
+.app-name {
+    margin: 0;
+    font-size: 2.5rem;
+    font-family: "VT323", monospace;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+main {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+}
+
+.progress-bar {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 2rem;
+    font-family: "VT323", monospace;
+    font-size: 1.2rem;
+}
+
+.progress-step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+}
+
+.progress-step::before {
+    content: "";
+    width: 40px;
+    height: 40px;
+    background-color: var(--background-color);
+    border: 3px solid var(--primary-color);
+    border-radius: 50%;
+    display: block;
+    margin: 0 auto 0.5rem;
+    line-height: 40px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.progress-step:nth-child(1)::before {
+    content: "1";
+}
+.progress-step:nth-child(2)::before {
+    content: "2";
+}
+.progress-step:nth-child(3)::before {
+    content: "3";
+}
+
+.progress-step::after {
+    content: "";
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    width: 100%;
+    height: 3px;
+    background-color: var(--primary-color);
+    z-index: -1;
+}
+
+.progress-step:last-child::after {
+    display: none;
+}
+
+.progress-step.active::before {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.step {
+    max-width: 800px;
+    width: 100%;
+}
+
+h2,
+h3 {
+    color: var(--primary-color);
+}
+
+.card {
+    background-color: var(--card-background);
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 2rem;
+    font-family: "VT323", monospace;
+}
+
+.file-upload {
+    border: 2px dashed var(--input-border);
+    border-radius: 4px;
+    padding: 2rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-upload:hover {
+    border-color: var(--primary-color);
+}
+
+.file-upload.highlight {
+    border-color: var(--primary-color);
+    background-color: rgba(84, 54, 218, 0.1);
+}
+
+.file-upload input[type="file"] {
+    display: none;
+}
+
+.file-upload label {
+    display: block;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.btn {
+    padding: 10px 15px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+}
+
+.btn:hover {
+    background-color: #4a2fb2;
+}
+
+.btn:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+input[type="range"] {
+    width: 100%;
+    margin: 1rem 0;
+}
+
+textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    font-size: 16px;
+    resize: vertical;
+}
+
+textarea:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.temperature-container {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+}
+
+#progressBarContainer {
+    width: 100%;
+    height: 20px;
+    background-color: #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 1rem;
+}
+
+#progressBar {
+    width: 0;
+    height: 100%;
+    background-color: var(--secondary-color);
+    transition: width 0.3s ease;
+}
+
+#modelStatus {
+    margin-top: 1rem;
+}
+
+#modelStats {
+    background-color: #f3f4f6;
+    padding: 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    word-wrap: break-word;
+    margin-bottom: 20px;
+}
+
+#generatedText {
+    background-color: #f3f4f6;
+    padding: 2rem;
+    border-radius: 12px;
+    font-family: "VT323", monospace;
+    font-size: 1.5rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    min-height: 250px;
+    width: 90% !important;
+    box-shadow:
+        0 4px 6px rgba(0, 0, 0, 0.1),
+        inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+#generatedText::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 4px;
+    background-color: var(--secondary-color);
+    animation: blink 0.7s infinite;
+}
+
+#animatedExplanation {
+    margin-top: 2rem;
+    padding: 1rem;
+    background-color: #f3f4f6;
+    border-radius: 8px;
+    font-family: "VT323", monospace;
+    font-size: 1.2rem;
+    line-height: 1.6;
+}
+
+.word-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.reasoning {
+    margin-top: 0.5rem;
+    font-style: italic;
+    color: #4b5563;
+}
+
+.hidden {
+    display: none;
+}
+
+.word {
+    display: inline-block;
+    padding: 2px;
+    margin: 2px;
+    border-radius: 3px;
+}
+
+.explanation {
+    margin-top: 1rem;
+    font-style: italic;
+}
+
+.options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.option {
+    background-color: #e0e0e0;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+.option.selected {
+    background-color: #4caf50;
+    color: white;
+}
+
+.button-group {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1rem;
+}
+
+.button-group .btn {
+    flex: 1;
+    margin: 0 0.5rem;
+}
+
+.button-group .btn:first-child {
+    margin-left: 0;
+}
+
+.button-group .btn:last-child {
+    margin-right: 0;
+}
+
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease-out;
+}
+
+.fade-in {
+    opacity: 1;
+    transition: opacity 0.5s ease-in;
+}
+
+.loading-container {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.loading-text {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.stat-name {
+    font-weight: bold;
+}
+
+.stat-value {
+    color: var(--secondary-color);
+}
+
+.stat-explanation {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+footer {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 1rem 0;
+    margin-top: auto;
+    font-size: 0.9rem;
+}
+
+.footer-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 0 1rem;
+}
+
+.footer-content a {
+    color: white;
+    text-decoration: underline;
+    transition: opacity 0.3s ease;
+}
+
+.footer-content a:hover {
+    opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+    .progress-bar {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .progress-step {
+        margin-bottom: 1rem;
+    }
+
+    .progress-step::after {
+        display: none;
+    }
+
+    .card {
+        padding: 1rem;
+    }
+
+    main {
+        padding: 1rem;
+    }
+
+    .button-group {
+        flex-direction: column;
+    }
+
+    .button-group .btn {
+        margin: 0.5rem 0;
+    }
+}

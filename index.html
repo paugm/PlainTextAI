@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Plain Text AI Builder</title>
+        <link rel="stylesheet" href="styles.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    </head>
+    <body>
+        <header>
+            <div class="header-content">
+                <div class="logo-container">
+                    <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 12h10V2z"></path>
+                        <path d="M12 2L22 12h-10V2z"></path>
+                        <path d="M2 12l10 10v-10H2z"></path>
+                        <path d="M12 12l10 10v-10h-10z"></path>
+                    </svg>
+                    <h1 class="app-name">Plain Text AI Builder</h1>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="progress-bar">
+                <div class="progress-step active" id="step1-progress">Train Model</div>
+                <div class="progress-step" id="step2-progress">Generate Text</div>
+                <div class="progress-step" id="step3-progress">Explore Results</div>
+            </div>
+            <div id="step1" class="section step">
+                <div class="card">
+                    <h2>Step 1: Training a New Model</h2>
+                    <div id="uploadForm">
+                        <p>To build your a simple language model, provide a text file 1 to learn from. This process is called "training". Your model will learn patterns and structures from the text you provide, and use these to generate new text later.</p>
+                        <p>You can use any .txt file containing text in a language of your choice. Good options could be:</p>
+                        <ul>
+                            <li>Books or book excerpts</li>
+                            <li>Articles or blog posts</li>
+                            <li>Song lyrics or poetry</li>
+                            <li>Your own writing</li>
+                        </ul>
+                        <p>The more text you provide, the more patterns your model will learn.</p>
+                        <div id="fileUploadArea" class="file-upload">
+                            <input type="file" id="fileInput" accept=".txt" />
+                            <label for="fileInput">Choose a file or drag it here</label>
+                        </div>
+                        <button id="uploadBtn" class="btn">Upload and Train Model</button>
+                    </div>
+                    <div id="progressBarContainer" class="hidden">
+                        <div id="progressBar"></div>
+                    </div>
+                    <div id="loadingContainer" class="hidden">
+                        <p class="loading-text">Generating model...</p>
+                        <div class="loading-spinner"></div>
+                    </div>
+                    <div id="modelStatus" class="hidden">
+                        <h3>Model trained successfully!</h3>
+                        <div id="modelStats"></div>
+                        <button id="continueBtn" class="btn">Continue</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="step2" class="section step hidden">
+                <div class="card">
+                    <h2>Step 2: Generate Text</h2>
+                    <p>Now that your model is trained, you can use it to generate text. Start by writing a prompt - this is the beginning of the text that your model will continue.</p>
+                    <textarea id="promptInput" rows="3" placeholder="Enter your prompt here..."></textarea>
+                    <div class="temperature-container">
+                        <label for="temperatureInput">Temperature: <span id="temperatureValue">1.0</span></label>
+                        <input type="range" id="temperatureInput" min="0.1" max="2" step="0.1" value="1.0">
+                    </div>
+                    <p>The temperature controls how "creative" your model is. Lower values (closer to 0) will make the model's choices more predictable, while higher values (closer to 2) will make the output more diverse and potentially more creative.</p>
+                    <button id="generateBtn" class="btn">Generate Text</button>
+                </div>
+            </div>
+
+            <div id="step3" class="section step hidden">
+                <div class="card">
+                    <h2>Step 3: Explore Results</h2>
+                    <h3>Generated Text</h3>
+                    <div id="generatedText"></div>
+                    <div class="button-group">
+                        <button id="explainReasoningBtn" class="btn hidden">Explain Reasoning</button>
+                        <button id="regenerateBtn" class="btn hidden">Regenerate</button>
+                        <button id="newPromptBtn" class="btn hidden">New Prompt</button>
+                    </div>
+                    <div id="animatedExplanation" class="hidden"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                Released under the <a href="https://opensource.org/licenses/MIT" target="_blank">MIT license</a>. Hobby project by <a href="https://github.com/paugm" target="_blank">Pau Garcia-Mila</a>. View the <a href="https://github.com/paugm/PlainTextAI" target="_blank">project repository</a>.
+            </div>
+        </footer>
+
+        <script src="PlainTextLMBuilder.js"></script>
+    </body>
+</html>
