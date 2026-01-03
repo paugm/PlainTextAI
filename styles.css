@@ -9,6 +9,13 @@
     --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     --input-border: #d1d5db;
     --input-focus: #5436da;
+    --error-color: #dc3545;
+    --error-bg: #f8d7da;
+    --success-color: #28a745;
+    --success-bg: #d4edda;
+    --highlight-color: #ffeaa7;
+    --animation-duration: 300ms;
+    --animation-easing: ease-in-out;
 }
 
 body {
@@ -68,6 +75,7 @@ main {
     padding: 2rem;
 }
 
+/* Progress Bar Navigation */
 .progress-bar {
     display: flex;
     justify-content: space-between;
@@ -96,6 +104,8 @@ main {
     line-height: 40px;
     font-weight: bold;
     color: var(--primary-color);
+    transition: background-color var(--animation-duration) var(--animation-easing),
+                color var(--animation-duration) var(--animation-easing);
 }
 
 .progress-step:nth-child(1)::before {
@@ -147,6 +157,7 @@ h3 {
     font-family: "VT323", monospace;
 }
 
+/* File Upload Area */
 .file-upload {
     border: 2px dashed var(--input-border);
     border-radius: 4px;
@@ -154,7 +165,7 @@ h3 {
     text-align: center;
     margin-bottom: 1rem;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all var(--animation-duration) var(--animation-easing);
 }
 
 .file-upload:hover {
@@ -174,8 +185,10 @@ h3 {
     display: block;
     font-weight: bold;
     color: var(--primary-color);
+    cursor: pointer;
 }
 
+/* Buttons */
 .btn {
     padding: 10px 15px;
     background-color: var(--primary-color);
@@ -184,11 +197,17 @@ h3 {
     cursor: pointer;
     border-radius: 4px;
     font-size: 16px;
-    transition: background-color 0.3s ease;
+    font-family: "VT323", monospace;
+    transition: background-color var(--animation-duration) var(--animation-easing),
+                transform 0.1s var(--animation-easing);
 }
 
 .btn:hover {
     background-color: #4a2fb2;
+}
+
+.btn:active {
+    transform: scale(0.98);
 }
 
 .btn:focus {
@@ -196,6 +215,28 @@ h3 {
     outline-offset: 2px;
 }
 
+.btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-success {
+    background-color: var(--success-color);
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
+/* Form Elements */
 input[type="range"] {
     width: 100%;
     margin: 1rem 0;
@@ -207,7 +248,9 @@ textarea {
     border: 1px solid var(--input-border);
     border-radius: 4px;
     font-size: 16px;
+    font-family: "VT323", monospace;
     resize: vertical;
+    box-sizing: border-box;
 }
 
 textarea:focus {
@@ -221,6 +264,7 @@ textarea:focus {
     margin-bottom: 1rem;
 }
 
+/* Progress Bar (Training) */
 #progressBarContainer {
     width: 100%;
     height: 20px;
@@ -234,9 +278,18 @@ textarea:focus {
     width: 0;
     height: 100%;
     background-color: var(--secondary-color);
-    transition: width 0.3s ease;
+    transition: width 0.1s linear;
+    border-radius: 10px;
 }
 
+#progressText {
+    text-align: center;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+/* Model Status */
 #modelStatus {
     margin-top: 1rem;
 }
@@ -250,6 +303,7 @@ textarea:focus {
     margin-bottom: 20px;
 }
 
+/* Generated Text Display */
 #generatedText {
     background-color: #f3f4f6;
     padding: 2rem;
@@ -260,11 +314,12 @@ textarea:focus {
     white-space: pre-wrap;
     word-wrap: break-word;
     min-height: 250px;
-    width: 90% !important;
+    width: 90%;
+    box-sizing: border-box;
     box-shadow:
         0 4px 6px rgba(0, 0, 0, 0.1),
         inset 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
+    transition: all var(--animation-duration) var(--animation-easing);
     position: relative;
     overflow: hidden;
 }
@@ -280,6 +335,12 @@ textarea:focus {
     animation: blink 0.7s infinite;
 }
 
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* Animated Explanation */
 #animatedExplanation {
     margin-top: 2rem;
     padding: 1rem;
@@ -288,6 +349,19 @@ textarea:focus {
     font-family: "VT323", monospace;
     font-size: 1.2rem;
     line-height: 1.6;
+}
+
+/* Word Highlighting (replaced anime.js) */
+.word {
+    display: inline-block;
+    padding: 2px;
+    margin: 2px;
+    border-radius: 3px;
+    transition: background-color var(--animation-duration) var(--animation-easing);
+}
+
+.word-highlighted {
+    background-color: var(--highlight-color);
 }
 
 .word-option.selected {
@@ -301,20 +375,16 @@ textarea:focus {
     color: #4b5563;
 }
 
-.hidden {
-    display: none;
-}
-
-.word {
-    display: inline-block;
-    padding: 2px;
-    margin: 2px;
-    border-radius: 3px;
-}
-
+/* Explanation and Options */
 .explanation {
     margin-top: 1rem;
     font-style: italic;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.explanation.animate-in {
+    animation: slideInUp var(--animation-duration) var(--animation-easing) forwards;
 }
 
 .options {
@@ -322,6 +392,12 @@ textarea:focus {
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: 0.5rem;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.options.animate-in {
+    animation: slideInUp var(--animation-duration) var(--animation-easing) forwards;
 }
 
 .option {
@@ -329,6 +405,7 @@ textarea:focus {
     padding: 2px 5px;
     border-radius: 3px;
     font-size: 0.9em;
+    transition: background-color var(--animation-duration) var(--animation-easing);
 }
 
 .option.selected {
@@ -336,51 +413,66 @@ textarea:focus {
     color: white;
 }
 
+/* Button Group */
 .button-group {
     display: flex;
     justify-content: space-between;
     margin-top: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .button-group .btn {
     flex: 1;
-    margin: 0 0.5rem;
+    min-width: 120px;
 }
 
-.button-group .btn:first-child {
-    margin-left: 0;
-}
-
-.button-group .btn:last-child {
-    margin-right: 0;
-}
-
+/* Animations (replaced anime.js) */
 .fade-out {
-    opacity: 0;
-    transition: opacity 0.5s ease-out;
+    animation: fadeOut 0.5s var(--animation-easing) forwards;
 }
 
 .fade-in {
-    opacity: 1;
-    transition: opacity 0.5s ease-in;
+    animation: fadeIn 0.5s var(--animation-easing) forwards;
 }
 
-.loading-container {
-    text-align: center;
-    margin-top: 1rem;
+@keyframes fadeIn {
+    from { 
+        opacity: 0; 
+    }
+    to { 
+        opacity: 1; 
+    }
 }
 
-.loading-text {
-    font-size: 1.2rem;
-    margin-bottom: 1rem;
+@keyframes fadeOut {
+    from { 
+        opacity: 1; 
+    }
+    to { 
+        opacity: 0; 
+    }
 }
 
-.loading-spinner {
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading Spinner (consolidated) */
+.loading-spinner,
+.spinner {
+    width: 40px;
+    height: 40px;
     border: 4px solid #f3f3f3;
     border-top: 4px solid var(--primary-color);
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
     animation: spin 1s linear infinite;
     margin: 0 auto;
 }
@@ -394,6 +486,71 @@ textarea:focus {
     }
 }
 
+.loading-container {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.loading-text {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.loading-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+}
+
+/* Notifications (error/success) - moved from inline JS */
+.notification {
+    padding: 12px 20px;
+    margin: 0 auto 1rem auto;
+    border-radius: 8px;
+    text-align: center;
+    max-width: 600px;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: "VT323", monospace;
+    font-size: 1.1rem;
+}
+
+.notification-error {
+    color: var(--error-color);
+    background-color: var(--error-bg);
+    border: 1px solid var(--error-color);
+}
+
+.notification-success {
+    color: var(--success-color);
+    background-color: var(--success-bg);
+    border: 1px solid var(--success-color);
+}
+
+/* Saved Model Banner */
+.saved-model-banner {
+    background-color: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.saved-model-banner p {
+    margin: 0 0 0.5rem 0;
+    color: #1565c0;
+}
+
+.saved-model-banner .btn-group {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Statistics Display */
 .stat-item {
     display: flex;
     justify-content: space-between;
@@ -415,6 +572,7 @@ textarea:focus {
     margin-bottom: 0.5rem;
 }
 
+/* Footer */
 footer {
     background-color: var(--primary-color);
     color: white;
@@ -433,13 +591,31 @@ footer {
 .footer-content a {
     color: white;
     text-decoration: underline;
-    transition: opacity 0.3s ease;
+    transition: opacity var(--animation-duration) var(--animation-easing);
 }
 
 .footer-content a:hover {
     opacity: 0.8;
 }
 
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
     .progress-bar {
         flex-direction: column;
@@ -467,6 +643,42 @@ footer {
     }
 
     .button-group .btn {
-        margin: 0.5rem 0;
+        margin: 0.25rem 0;
+        width: 100%;
     }
+
+    .saved-model-banner .btn-group {
+        flex-direction: column;
+    }
+
+    #generatedText {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.2rem;
+    }
+}
+
+/* Focus styles for accessibility */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Skip to main content link (accessibility) */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary-color);
+    color: white;
+    padding: 8px;
+    z-index: 100;
+    transition: top 0.3s;
+}
+
+.skip-link:focus {
+    top: 0;
 }

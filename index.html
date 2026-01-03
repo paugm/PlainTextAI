@@ -3,15 +3,18 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="Plain Text AI Builder - Train simple language models using plain text data and generate new text">
         <title>Plain Text AI Builder</title>
         <link rel="stylesheet" href="styles.css">
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     </head>
     <body>
-        <header>
+        <!-- Skip to main content link for accessibility -->
+        <a href="#main-content" class="skip-link">Skip to main content</a>
+
+        <header role="banner">
             <div class="header-content">
                 <div class="logo-container">
-                    <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M12 2L2 12h10V2z"></path>
                         <path d="M12 2L22 12h-10V2z"></path>
                         <path d="M2 12l10 10v-10H2z"></path>
@@ -22,17 +25,41 @@
             </div>
         </header>
 
-        <main>
-            <div class="progress-bar">
-                <div class="progress-step active" id="step1-progress">Train Model</div>
-                <div class="progress-step" id="step2-progress">Generate Text</div>
-                <div class="progress-step" id="step3-progress">Explore Results</div>
-            </div>
-            <div id="step1" class="section step">
+        <main id="main-content" role="main">
+            <!-- Progress Steps Navigation -->
+            <nav class="progress-bar" aria-label="Training wizard steps">
+                <div class="progress-step active" id="step1-progress" aria-current="step">
+                    <span class="sr-only">Step 1:</span> Train Model
+                </div>
+                <div class="progress-step" id="step2-progress">
+                    <span class="sr-only">Step 2:</span> Generate Text
+                </div>
+                <div class="progress-step" id="step3-progress">
+                    <span class="sr-only">Step 3:</span> Explore Results
+                </div>
+            </nav>
+
+            <!-- Step 1: Training -->
+            <section id="step1" class="section step" aria-labelledby="step1-heading">
                 <div class="card">
-                    <h2>Step 1: Training a New Model</h2>
+                    <h2 id="step1-heading">Step 1: Training a New Model</h2>
+                    
+                    <!-- Saved Model Banner -->
+                    <div id="savedModelBanner" class="saved-model-banner hidden" role="alert">
+                        <p><strong>You have a previously trained model saved.</strong></p>
+                        <p>Would you like to continue with your saved model or train a new one?</p>
+                        <div class="btn-group">
+                            <button id="loadSavedModelBtn" class="btn btn-success" type="button">
+                                Load Saved Model
+                            </button>
+                            <button id="discardModelBtn" class="btn btn-secondary" type="button">
+                                Train New Model
+                            </button>
+                        </div>
+                    </div>
+
                     <div id="uploadForm">
-                        <p>To build your a simple language model, provide a text file 1 to learn from. This process is called "training". Your model will learn patterns and structures from the text you provide, and use these to generate new text later.</p>
+                        <p>To build a simple language model, provide a text file to learn from. This process is called "training". Your model will learn patterns and structures from the text you provide, and use these to generate new text later.</p>
                         <p>You can use any .txt file containing text in a language of your choice. Good options could be:</p>
                         <ul>
                             <li>Books or book excerpts</li>
@@ -41,59 +68,135 @@
                             <li>Your own writing</li>
                         </ul>
                         <p>The more text you provide, the more patterns your model will learn.</p>
-                        <div id="fileUploadArea" class="file-upload">
-                            <input type="file" id="fileInput" accept=".txt" />
-                            <label for="fileInput">Choose a file or drag it here</label>
+                        
+                        <div id="fileUploadArea" class="file-upload" role="button" tabindex="0" aria-describedby="file-upload-instructions">
+                            <input 
+                                type="file" 
+                                id="fileInput" 
+                                accept=".txt,text/plain" 
+                                aria-label="Choose a text file to train the model"
+                            />
+                            <label for="fileInput" id="file-upload-instructions">
+                                Choose a .txt file or drag it here
+                            </label>
                         </div>
-                        <button id="uploadBtn" class="btn">Upload and Train Model</button>
+                        <button id="uploadBtn" class="btn" type="button" aria-describedby="file-upload-instructions">
+                            Upload and Train Model
+                        </button>
                     </div>
-                    <div id="progressBarContainer" class="hidden">
-                        <div id="progressBar"></div>
+
+                    <!-- Training Progress -->
+                    <div id="progressBarContainer" class="hidden" role="group" aria-labelledby="progress-label">
+                        <span id="progress-label" class="sr-only">Training progress</span>
+                        <div 
+                            id="progressBar" 
+                            role="progressbar" 
+                            aria-valuemin="0" 
+                            aria-valuemax="100" 
+                            aria-valuenow="0"
+                            aria-label="Model training progress"
+                        ></div>
+                        <div id="progressText" aria-live="polite">Preparing to train...</div>
                     </div>
-                    <div id="loadingContainer" class="hidden">
-                        <p class="loading-text">Generating model...</p>
-                        <div class="loading-spinner"></div>
+
+                    <div id="loadingContainer" class="hidden loading-container" aria-busy="true">
+                        <p class="loading-text" aria-live="polite">Generating model...</p>
+                        <div class="loading-spinner" role="status" aria-label="Loading">
+                            <span class="sr-only">Training in progress...</span>
+                        </div>
                     </div>
-                    <div id="modelStatus" class="hidden">
+
+                    <!-- Model Status (shown after training) -->
+                    <div id="modelStatus" class="hidden" role="status" aria-live="polite">
                         <h3>Model trained successfully!</h3>
-                        <div id="modelStats"></div>
-                        <button id="continueBtn" class="btn">Continue</button>
+                        <div id="modelStats" aria-label="Model statistics"></div>
+                        <div class="button-group">
+                            <button id="saveModelBtn" class="btn btn-secondary" type="button">
+                                Save Model for Later
+                            </button>
+                            <button id="continueBtn" class="btn" type="button">
+                                Continue to Generate Text
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div id="step2" class="section step hidden">
+            <!-- Step 2: Generate Text -->
+            <section id="step2" class="section step hidden" aria-labelledby="step2-heading">
                 <div class="card">
-                    <h2>Step 2: Generate Text</h2>
+                    <h2 id="step2-heading">Step 2: Generate Text</h2>
                     <p>Now that your model is trained, you can use it to generate text. Start by writing a prompt - this is the beginning of the text that your model will continue.</p>
-                    <textarea id="promptInput" rows="3" placeholder="Enter your prompt here..."></textarea>
+                    
+                    <label for="promptInput" class="sr-only">Enter your prompt</label>
+                    <textarea 
+                        id="promptInput" 
+                        rows="3" 
+                        placeholder="Enter your prompt here..."
+                        aria-describedby="prompt-help temperature-help"
+                    ></textarea>
+                    
                     <div class="temperature-container">
-                        <label for="temperatureInput">Temperature: <span id="temperatureValue">1.0</span></label>
-                        <input type="range" id="temperatureInput" min="0.1" max="2" step="0.1" value="1.0">
+                        <label for="temperatureInput" id="temperature-label">
+                            Temperature: <span id="temperatureValue">1.0</span>
+                        </label>
+                        <input 
+                            type="range" 
+                            id="temperatureInput" 
+                            min="0.1" 
+                            max="2" 
+                            step="0.1" 
+                            value="1.0"
+                            aria-describedby="temperature-help"
+                        >
                     </div>
-                    <p>The temperature controls how "creative" your model is. Lower values (closer to 0) will make the model's choices more predictable, while higher values (closer to 2) will make the output more diverse and potentially more creative.</p>
-                    <button id="generateBtn" class="btn">Generate Text</button>
+                    <p id="temperature-help">The temperature controls how "creative" your model is. Lower values (closer to 0) will make the model's choices more predictable, while higher values (closer to 2) will make the output more diverse and potentially more creative.</p>
+                    <p id="prompt-help" class="sr-only">Enter a starting text that the model will continue. Press Enter to generate or use the Generate Text button.</p>
+                    
+                    <button id="generateBtn" class="btn" type="button">
+                        Generate Text
+                    </button>
                 </div>
-            </div>
+            </section>
 
-            <div id="step3" class="section step hidden">
+            <!-- Step 3: Results -->
+            <section id="step3" class="section step hidden" aria-labelledby="step3-heading">
                 <div class="card">
-                    <h2>Step 3: Explore Results</h2>
-                    <h3>Generated Text</h3>
-                    <div id="generatedText"></div>
-                    <div class="button-group">
-                        <button id="explainReasoningBtn" class="btn hidden">Explain Reasoning</button>
-                        <button id="regenerateBtn" class="btn hidden">Regenerate</button>
-                        <button id="newPromptBtn" class="btn hidden">New Prompt</button>
+                    <h2 id="step3-heading">Step 3: Explore Results</h2>
+                    <h3 id="generated-text-heading">Generated Text</h3>
+                    <div 
+                        id="generatedText" 
+                        role="region" 
+                        aria-labelledby="generated-text-heading"
+                        aria-live="polite"
+                    ></div>
+                    <div class="button-group" role="group" aria-label="Result actions">
+                        <button id="explainReasoningBtn" class="btn hidden" type="button">
+                            Explain Reasoning
+                        </button>
+                        <button id="regenerateBtn" class="btn hidden" type="button">
+                            Regenerate
+                        </button>
+                        <button id="newPromptBtn" class="btn hidden" type="button">
+                            New Prompt
+                        </button>
                     </div>
-                    <div id="animatedExplanation" class="hidden"></div>
+                    <div 
+                        id="animatedExplanation" 
+                        class="hidden" 
+                        role="region" 
+                        aria-label="Word-by-word explanation of generated text"
+                        aria-live="polite"
+                    ></div>
                 </div>
-            </div>
+            </section>
         </main>
 
-        <footer>
+        <footer role="contentinfo">
             <div class="footer-content">
-                Released under the <a href="https://opensource.org/licenses/MIT" target="_blank">MIT license</a>. Hobby project by <a href="https://github.com/paugm" target="_blank">Pau Garcia-Mila</a>. View the <a href="https://github.com/paugm/PlainTextAI" target="_blank">project repository</a>.
+                Released under the <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer">MIT license</a>. 
+                Hobby project by <a href="https://github.com/paugm" target="_blank" rel="noopener noreferrer">Pau Garcia-Mila</a>. 
+                View the <a href="https://github.com/paugm/PlainTextAI" target="_blank" rel="noopener noreferrer">project repository</a>.
             </div>
         </footer>
 

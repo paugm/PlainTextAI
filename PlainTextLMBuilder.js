@@ -1,12 +1,27 @@
+// Configuration constants
+const CONFIG = {
+  MIN_LOADING_TIME: 3000, // Minimum 3 seconds for loading
+  MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+  MIN_FILE_LENGTH: 100,
+  ERROR_DISPLAY_TIME: 5000,
+  TYPEWRITER_SPEED: 100,
+  DEFAULT_MAX_LENGTH: 100,
+  DEFAULT_TEMPERATURE: 1.0,
+  DEFAULT_NGRAM_SIZE: 3,
+  DEFAULT_ALPHA: 0.1,
+  EXPLANATION_DELAY: 2000,
+  ANIMATION_DURATION: 300,
+  STORAGE_KEY: 'plainTextAI_model',
+};
+
 // Main language model builder class
 class PlainTextLMBuilder {
   constructor(config = {}) {
     this.corpus = "";
     this.model = new Map();
     this.config = {
-      ngramSize: config.ngramSize || 3,
-      smoothingMethod: config.smoothingMethod || "laplace",
-      alpha: config.alpha || 0.1,
+      ngramSize: config.ngramSize || CONFIG.DEFAULT_NGRAM_SIZE,
+      alpha: config.alpha || CONFIG.DEFAULT_ALPHA,
     };
     this.stats = {
       uniqueNgrams: 0,
@@ -14,22 +29,24 @@ class PlainTextLMBuilder {
       totalTokens: 0,
     };
     this.vocabulary = new Set();
-    this.cache = new Map();
-    this.memoizedCalculations = new Map();
+    this.vocabularyArray = []; // Cached array for performance
     this.tokenizer = new OptimizedTokenizer();
-    this.properNouns = new Set();
-    this.getNextTokens = this.memoize(this.getNextTokens.bind(this));
-    this.cacheMaxSize = 1000;
     this.maxNgramLength = Math.max(3, this.config.ngramSize);
+    this.onProgress = null; // Progress callback
   }
 
   // Train the model with the given text
-  async train(text) {
+  async train(text, onProgress = null) {
+    this.onProgress = onProgress;
+    
     try {
-      this.corpus = this.tokenizer.tokenize(text.toLowerCase());
+      this.corpus = this.tokenizer.tokenize(text);
       this.model.clear();
       this.vocabulary.clear();
       this.stats.totalTokens = this.corpus.length;
+
+      const totalIterations = this.corpus.length;
+      let lastProgressUpdate = 0;
 
       for (let i = 0; i < this.corpus.length; i++) {
         for (
@@ -48,18 +65,46 @@ class PlainTextLMBuilder {
 
           this.vocabulary.add(nextToken);
         }
+
+        // Report progress every 1% or at least every 100 iterations
+        const progress = ((i + 1) / totalIterations) * 100;
+        if (progress - lastProgressUpdate >= 1 || i === totalIterations - 1) {
+          lastProgressUpdate = progress;
+          if (this.onProgress) {
+            this.onProgress(progress);
+          }
+          // Yield to main thread periodically for UI updates
+          if (i % 1000 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
       }
 
+      // Cache vocabulary array for performance
+      this.vocabularyArray = Array.from(this.vocabulary);
+      
       this.stats.uniqueNgrams = this.model.size;
       this.stats.vocabularySize = this.vocabulary.size;
 
     } catch (error) {
       console.error("Error during training:", error);
+      throw new Error(`Training failed: ${error.message}`);
     }
   }
 
   // Generate text based on the trained model
   generate(prompt, maxLength = 50, temperature = 1.0) {
+    if (!this.model.size) {
+      throw new Error("Model has not been trained yet. Please train a model first.");
+    }
+    
+    if (!prompt || prompt.trim().length === 0) {
+      throw new Error("Please provide a prompt to generate text.");
+    }
+
+    // Clamp temperature to valid range
+    temperature = Math.max(0.1, Math.min(2.0, temperature));
+    
     let tokens = this.tokenizer.tokenize(prompt.toLowerCase());
     let generated = [];
     let explanations = [];
@@ -97,61 +142,78 @@ class PlainTextLMBuilder {
 
   // Get the next possible tokens based on the given context
   getNextTokens(gram, temperature = 1.0, topK = 10) {
+    const gramTokens = gram.split(" ");
     let possibilities;
+    
     for (
-      let i = Math.min(gram.split(" ").length, this.maxNgramLength);
+      let i = Math.min(gramTokens.length, this.maxNgramLength);
       i > 0;
       i--
     ) {
-      const subGram = gram.split(" ").slice(-i).join(" ");
+      const subGram = gramTokens.slice(-i).join(" ");
       possibilities = this.model.get(subGram);
       if (possibilities && possibilities.size > 0) {
         break;
       }
     }
 
+    // Use cached vocabulary array
+    const vocabArray = this.vocabularyArray;
+
     if (!possibilities || possibilities.size === 0) {
-      return Array.from(this.vocabulary)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, topK)
-        .map((token) => [token, 1 / this.vocabulary.size]);
+      // Return random sample from vocabulary with uniform probability
+      const sampled = [];
+      const used = new Set();
+      while (sampled.length < Math.min(topK, vocabArray.length)) {
+        const idx = Math.floor(Math.random() * vocabArray.length);
+        if (!used.has(idx)) {
+          used.add(idx);
+          sampled.push([vocabArray[idx], 1 / this.vocabulary.size]);
+        }
+      }
+      return sampled;
     }
 
-    const total = Array.from(possibilities.values()).reduce(
-      (sum, count) => sum + count,
-      0
-    );
+    // Calculate total count using a simple loop (faster than reduce)
+    let total = 0;
+    for (const count of possibilities.values()) {
+      total += count;
+    }
+    
     const adjustedProbabilities = new Map();
+    const vocabSize = this.vocabulary.size;
+    const alpha = this.config.alpha;
+    const denominator = total + alpha * vocabSize;
 
     for (const [token, count] of possibilities.entries()) {
-      let prob =
-        (count + this.config.alpha) /
-        (total + this.config.alpha * this.vocabulary.size);
+      const prob = (count + alpha) / denominator;
       adjustedProbabilities.set(token, Math.pow(prob, 1 / temperature));
     }
 
-    // Add some randomness to prevent always choosing the same top options
-    const randomTokens = Array.from(this.vocabulary)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(2, Math.floor(topK / 4)));
-
-    for (const token of randomTokens) {
-      if (!adjustedProbabilities.has(token)) {
+    // Add random tokens from vocabulary for diversity
+    const numRandomTokens = Math.max(2, Math.floor(topK / 4));
+    const used = new Set(adjustedProbabilities.keys());
+    let added = 0;
+    
+    while (added < numRandomTokens && used.size < vocabArray.length) {
+      const idx = Math.floor(Math.random() * vocabArray.length);
+      const token = vocabArray[idx];
+      if (!used.has(token)) {
+        used.add(token);
         adjustedProbabilities.set(
           token,
-          Math.pow(
-            this.config.alpha /
-              (total + this.config.alpha * this.vocabulary.size),
-            1 / temperature
-          )
+          Math.pow(alpha / denominator, 1 / temperature)
         );
+        added++;
       }
     }
 
-    const totalAdjustedProb = Array.from(adjustedProbabilities.values()).reduce(
-      (sum, prob) => sum + prob,
-      0
-    );
+    // Calculate total adjusted probability using a simple loop
+    let totalAdjustedProb = 0;
+    for (const prob of adjustedProbabilities.values()) {
+      totalAdjustedProb += prob;
+    }
+    
     const normalizedProbs = Array.from(adjustedProbabilities.entries()).map(
       ([token, prob]) => [token, prob / totalAdjustedProb]
     );
@@ -173,51 +235,54 @@ class PlainTextLMBuilder {
     return tokens[tokens.length - 1];
   }
 
-  // Memoize function results
-  memoize(func) {
-    return (...args) => {
-      const key = JSON.stringify(args);
-      if (this.memoizedCalculations.has(key)) {
-        return this.memoizedCalculations.get(key);
-      }
-      const result = func.apply(this, args);
-      this.memoizedCalculations.set(key, result);
-      return result;
+  // Get model statistics
+  getStats() {
+    return {
+      ngramSize: this.config.ngramSize,
+      uniqueNgrams: this.stats.uniqueNgrams,
+      vocabularySize: this.stats.vocabularySize,
+      totalTokens: this.stats.totalTokens,
     };
   }
 
-  // Get model statistics as a formatted string
-  getStatsString() {
-    return `
-      <div class="stat-item">
-        <span class="stat-name">N-gram Size:</span>
-        <span class="stat-value">${this.config.ngramSize}</span>
-      </div>
-      <div class="stat-explanation">
-        N-gram size determines the context length used for predictions. Larger sizes capture more context but require more data.
-      </div>
-      <div class="stat-item">
-        <span class="stat-name">Unique N-grams:</span>
-        <span class="stat-value">${this.stats.uniqueNgrams.toLocaleString()}</span>
-      </div>
-      <div class="stat-explanation">
-        The number of distinct n-grams in the model. More unique n-grams can lead to more diverse text generation.
-      </div>
-      <div class="stat-item">
-        <span class="stat-name">Vocabulary Size:</span>
-        <span class="stat-value">${this.stats.vocabularySize.toLocaleString()}</span>
-      </div>
-      <div class="stat-explanation">
-        The number of unique tokens (characters) in the model. A larger vocabulary allows for more expressive text generation.
-      </div>
-      <div class="stat-item">
-        <span class="stat-name">Total Tokens:</span>
-        <span class="stat-value">${this.stats.totalTokens.toLocaleString()}</span>
-      </div>
-      <div class="stat-explanation">
-        The total number of tokens (characters) processed during training. More tokens generally lead to better model performance.
-      </div>
-    `;
+  // Serialize model for storage
+  serialize() {
+    const modelData = {};
+    for (const [gram, nextTokens] of this.model.entries()) {
+      modelData[gram] = Object.fromEntries(nextTokens);
+    }
+    
+    return {
+      model: modelData,
+      vocabulary: Array.from(this.vocabulary),
+      config: this.config,
+      stats: this.stats,
+    };
+  }
+
+  // Deserialize model from storage
+  deserialize(data) {
+    try {
+      if (!data || !data.model || !data.vocabulary) {
+        throw new Error("Invalid model data format");
+      }
+
+      this.model.clear();
+      for (const [gram, nextTokens] of Object.entries(data.model)) {
+        this.model.set(gram, new Map(Object.entries(nextTokens)));
+      }
+      
+      this.vocabulary = new Set(data.vocabulary);
+      this.vocabularyArray = Array.from(this.vocabulary);
+      this.config = data.config || { ngramSize: CONFIG.DEFAULT_NGRAM_SIZE, alpha: CONFIG.DEFAULT_ALPHA };
+      this.stats = data.stats || { uniqueNgrams: 0, vocabularySize: 0, totalTokens: 0 };
+      this.maxNgramLength = Math.max(3, this.config.ngramSize);
+      
+      return true;
+    } catch (error) {
+      console.error("Error deserializing model:", error);
+      throw new Error(`Failed to load model: ${error.message}`);
+    }
   }
 }
 
@@ -251,8 +316,10 @@ class PlainTextAI {
   constructor() {
     this.llm = new PlainTextLMBuilder();
     this.generatedResult = null;
+    this.trainingStartTime = null;
     this.initializeElements();
     this.addEventListeners();
+    this.checkForSavedModel();
     this.showStep(1);
   }
 
@@ -264,6 +331,7 @@ class PlainTextAI {
       uploadForm: document.getElementById("uploadForm"),
       progressBarContainer: document.getElementById("progressBarContainer"),
       progressBar: document.getElementById("progressBar"),
+      progressText: document.getElementById("progressText"),
       modelStatus: document.getElementById("modelStatus"),
       modelStats: document.getElementById("modelStats"),
       continueBtn: document.getElementById("continueBtn"),
@@ -279,6 +347,10 @@ class PlainTextAI {
       steps: document.querySelectorAll(".step"),
       loadingContainer: document.getElementById("loadingContainer"),
       fileUploadArea: document.querySelector(".file-upload"),
+      savedModelBanner: document.getElementById("savedModelBanner"),
+      loadSavedModelBtn: document.getElementById("loadSavedModelBtn"),
+      discardModelBtn: document.getElementById("discardModelBtn"),
+      saveModelBtn: document.getElementById("saveModelBtn"),
     };
   }
 
@@ -306,6 +378,31 @@ class PlainTextAI {
     this.elements.temperatureInput.addEventListener("input", () =>
       this.updateTemperatureValue()
     );
+
+    // Model persistence buttons
+    if (this.elements.loadSavedModelBtn) {
+      this.elements.loadSavedModelBtn.addEventListener("click", () =>
+        this.loadSavedModel()
+      );
+    }
+    if (this.elements.discardModelBtn) {
+      this.elements.discardModelBtn.addEventListener("click", () =>
+        this.discardSavedModel()
+      );
+    }
+    if (this.elements.saveModelBtn) {
+      this.elements.saveModelBtn.addEventListener("click", () =>
+        this.saveModel()
+      );
+    }
+
+    // Keyboard support for prompt
+    this.elements.promptInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        this.generateText();
+      }
+    });
 
     // Drag and drop functionality
     ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
@@ -337,49 +434,213 @@ class PlainTextAI {
       this.handleDrop.bind(this),
       false
     );
+  }
 
-    // Navigation
-    document.querySelectorAll("header nav ul li a").forEach((item, index) => {
-      item.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.showStep(index + 1);
-      });
-    });
+  // Check for saved model in localStorage
+  checkForSavedModel() {
+    try {
+      const savedModel = localStorage.getItem(CONFIG.STORAGE_KEY);
+      if (savedModel && this.elements.savedModelBanner) {
+        this.elements.savedModelBanner.classList.remove("hidden");
+        this.elements.savedModelBanner.classList.add("fade-in");
+      }
+    } catch (error) {
+      console.warn("Could not access localStorage:", error);
+    }
+  }
+
+  // Load saved model from localStorage
+  loadSavedModel() {
+    try {
+      const savedModel = localStorage.getItem(CONFIG.STORAGE_KEY);
+      if (!savedModel) {
+        this.showError("No saved model found.");
+        return;
+      }
+
+      const modelData = JSON.parse(savedModel);
+      this.llm.deserialize(modelData);
+      
+      // Hide banner and show success
+      if (this.elements.savedModelBanner) {
+        this.elements.savedModelBanner.classList.add("hidden");
+      }
+      this.elements.uploadForm.classList.add("hidden");
+      this.elements.modelStats.innerHTML = this.renderStats(this.llm.getStats());
+      this.elements.modelStatus.classList.remove("hidden");
+      this.elements.modelStatus.classList.add("fade-in");
+      
+      this.showSuccess("Model loaded successfully!");
+    } catch (error) {
+      console.error("Error loading saved model:", error);
+      this.showError(`Failed to load saved model: ${error.message}`);
+    }
+  }
+
+  // Save current model to localStorage
+  saveModel() {
+    try {
+      if (!this.llm.model.size) {
+        this.showError("No model to save. Please train a model first.");
+        return;
+      }
+
+      const modelData = this.llm.serialize();
+      const serialized = JSON.stringify(modelData);
+      
+      // Check storage size (localStorage typically has 5-10MB limit)
+      if (serialized.length > 4 * 1024 * 1024) {
+        this.showError("Model is too large to save. Try training with a smaller text file.");
+        return;
+      }
+
+      localStorage.setItem(CONFIG.STORAGE_KEY, serialized);
+      this.showSuccess("Model saved successfully!");
+    } catch (error) {
+      console.error("Error saving model:", error);
+      if (error.name === 'QuotaExceededError') {
+        this.showError("Storage quota exceeded. Try clearing browser data or using a smaller model.");
+      } else {
+        this.showError(`Failed to save model: ${error.message}`);
+      }
+    }
+  }
+
+  // Discard saved model from localStorage
+  discardSavedModel() {
+    try {
+      localStorage.removeItem(CONFIG.STORAGE_KEY);
+      if (this.elements.savedModelBanner) {
+        this.elements.savedModelBanner.classList.add("fade-out");
+        setTimeout(() => {
+          this.elements.savedModelBanner.classList.add("hidden");
+          this.elements.savedModelBanner.classList.remove("fade-out");
+        }, 500);
+      }
+    } catch (error) {
+      console.error("Error discarding saved model:", error);
+    }
   }
 
   // Show a specific step in the UI
   showStep(stepNumber) {
     this.elements.steps.forEach((step, index) => {
+      const progressStep = document.querySelector(`.progress-step:nth-child(${index + 1})`);
       if (index + 1 === stepNumber) {
         step.classList.remove("hidden");
-        document
-          .querySelector(`.progress-step:nth-child(${index + 1})`)
-          .classList.add("active");
+        step.classList.add("fade-in");
+        if (progressStep) {
+          progressStep.classList.add("active");
+          progressStep.setAttribute("aria-current", "step");
+        }
       } else {
         step.classList.add("hidden");
-        document
-          .querySelector(`.progress-step:nth-child(${index + 1})`)
-          .classList.remove("active");
+        step.classList.remove("fade-in");
+        if (progressStep) {
+          progressStep.classList.remove("active");
+          progressStep.removeAttribute("aria-current");
+        }
       }
     });
   }
 
-  // Handle file upload
+  // Handle file upload with validation
   handleFileUpload(file) {
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const text = e.target.result;
-        this.showLoadingUI();
+    if (!file) {
+      return;
+    }
+
+    // Validate file type
+    if (!file.name.endsWith('.txt') && file.type !== 'text/plain') {
+      this.showError('Please upload a .txt file');
+      return;
+    }
+
+    // Warn about large files
+    if (file.size > CONFIG.MAX_FILE_SIZE) {
+      this.showError('File is too large. Please use a file smaller than 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    
+    reader.onerror = () => {
+      this.showError('Failed to read file. Please try again.');
+    };
+
+    reader.onload = async (e) => {
+      const text = e.target.result;
+      
+      // Validate content
+      if (!text || text.trim().length === 0) {
+        this.showError('The file appears to be empty.');
+        return;
+      }
+
+      // Warn about very short files
+      if (text.trim().length < CONFIG.MIN_FILE_LENGTH) {
+        this.showError('The file is very short. For better results, use a file with more text.');
+        return;
+      }
+
+      this.showLoadingUI();
+      try {
         await this.trainModel(text);
         this.hideLoadingUI();
-      };
-      reader.readAsText(file);
+      } catch (error) {
+        this.hideLoadingUI();
+        this.showError(error.message || 'An error occurred during training. Please try again.');
+        console.error('Training error:', error);
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
+  // Show error message to user
+  showError(message) {
+    this.showNotification(message, 'error');
+  }
+
+  // Show success message to user
+  showSuccess(message) {
+    this.showNotification(message, 'success');
+  }
+
+  // Show notification (error or success)
+  showNotification(message, type = 'error') {
+    const existingNotification = document.getElementById('notification');
+    if (existingNotification) {
+      existingNotification.remove();
     }
+
+    const notification = document.createElement('div');
+    notification.id = 'notification';
+    notification.className = `notification notification-${type} fade-in`;
+    notification.setAttribute('role', 'alert');
+    notification.setAttribute('aria-live', 'polite');
+    notification.textContent = message;
+    
+    // Insert at the top of main
+    const main = document.querySelector('main');
+    main.insertBefore(notification, main.firstChild);
+    
+    // Auto-hide after timeout
+    setTimeout(() => {
+      notification.classList.remove('fade-in');
+      notification.classList.add('fade-out');
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.remove();
+        }
+      }, 500);
+    }, CONFIG.ERROR_DISPLAY_TIME);
   }
 
   // Show loading UI during model training
   showLoadingUI() {
+    this.trainingStartTime = Date.now();
+    
     this.elements.uploadForm.classList.add("fade-out");
     setTimeout(() => {
       this.elements.uploadForm.classList.add("hidden");
@@ -387,7 +648,7 @@ class PlainTextAI {
       this.elements.loadingContainer.classList.remove("hidden");
       this.elements.progressBarContainer.classList.add("fade-in");
       this.elements.loadingContainer.classList.add("fade-in");
-      this.elements.progressBar.style.width = "0%";
+      this.updateProgressBar(0, "Training model...");
     }, 500);
   }
 
@@ -398,49 +659,111 @@ class PlainTextAI {
     setTimeout(() => {
       this.elements.progressBarContainer.classList.add("hidden");
       this.elements.loadingContainer.classList.add("hidden");
-      this.elements.modelStats.innerHTML = this.llm.getStatsString();
+      this.elements.progressBarContainer.classList.remove("fade-out", "fade-in");
+      this.elements.loadingContainer.classList.remove("fade-out", "fade-in");
+      this.elements.modelStats.innerHTML = this.renderStats(this.llm.getStats());
       this.elements.modelStatus.classList.remove("hidden");
       this.elements.modelStatus.classList.add("fade-in");
     }, 500);
+  }
+
+  // Update progress bar with actual progress
+  updateProgressBar(percent, text = "") {
+    this.elements.progressBar.style.width = `${percent}%`;
+    this.elements.progressBar.setAttribute('aria-valuenow', Math.round(percent));
+    if (this.elements.progressText && text) {
+      this.elements.progressText.textContent = text;
+    }
+  }
+
+  // Render model statistics as HTML (UI layer responsibility)
+  renderStats(stats) {
+    const statItems = [
+      {
+        name: 'N-gram Size',
+        value: stats.ngramSize,
+        explanation: 'N-gram size determines the context length used for predictions. Larger sizes capture more context but require more data.'
+      },
+      {
+        name: 'Unique N-grams',
+        value: stats.uniqueNgrams.toLocaleString(),
+        explanation: 'The number of distinct n-grams in the model. More unique n-grams can lead to more diverse text generation.'
+      },
+      {
+        name: 'Vocabulary Size',
+        value: stats.vocabularySize.toLocaleString(),
+        explanation: 'The number of unique tokens (words) in the model. A larger vocabulary allows for more expressive text generation.'
+      },
+      {
+        name: 'Total Tokens',
+        value: stats.totalTokens.toLocaleString(),
+        explanation: 'The total number of tokens (words) processed during training. More tokens generally lead to better model performance.'
+      }
+    ];
+
+    return statItems.map(item => `
+      <div class="stat-item">
+        <span class="stat-name">${this.escapeHtml(item.name)}:</span>
+        <span class="stat-value">${this.escapeHtml(String(item.value))}</span>
+      </div>
+      <div class="stat-explanation">${this.escapeHtml(item.explanation)}</div>
+    `).join('');
+  }
+
+  // Escape HTML to prevent XSS
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   // Train the model with the provided text
   async trainModel(text) {
     const startTime = Date.now();
 
-    // Start progress bar animation
-    this.animateProgressBar(1500);
-
-    // Train the model
-    await this.llm.train(text);
-
-    const elapsedTime = Date.now() - startTime;
-    const remainingTime = Math.max(0, 1500 - elapsedTime);
-
-    // Ensure the progress bar completes its animation
-    if (remainingTime > 0) {
-      await new Promise((resolve) => setTimeout(resolve, remainingTime));
-    }
-  }
-
-  // Animate the progress bar
-  animateProgressBar(duration) {
-    anime({
-      targets: this.elements.progressBar,
-      width: "100%",
-      duration: duration,
-      easing: "linear",
+    // Train the model with progress callback
+    await this.llm.train(text, (progress) => {
+      // Training phase is 0-50% of progress bar
+      this.updateProgressBar(progress * 0.5, `Training model... ${Math.round(progress)}%`);
     });
+
+    const trainingTime = Date.now() - startTime;
+    const remainingTime = CONFIG.MIN_LOADING_TIME - trainingTime;
+
+    // If training was fast, show a "finalizing" phase
+    if (remainingTime > 0) {
+      this.updateProgressBar(50, "Finalizing model...");
+      
+      const finalizingSteps = 50;
+      const stepDuration = remainingTime / finalizingSteps;
+      
+      for (let i = 0; i <= finalizingSteps; i++) {
+        await new Promise(resolve => setTimeout(resolve, stepDuration));
+        const progress = 50 + (i / finalizingSteps) * 50;
+        this.updateProgressBar(progress, `Finalizing model... ${Math.round(progress)}%`);
+      }
+    } else {
+      this.updateProgressBar(100, "Complete!");
+    }
   }
 
   // Generate text based on the user's prompt
   generateText() {
     const prompt = this.elements.promptInput.value;
-    const temperature = parseFloat(this.elements.temperatureInput.value) || 1.0;
-    if (prompt) {
-      this.generatedResult = this.llm.generate(prompt, 100, temperature);
+    const temperature = parseFloat(this.elements.temperatureInput.value) || CONFIG.DEFAULT_TEMPERATURE;
+    
+    if (!prompt || prompt.trim().length === 0) {
+      this.showError("Please enter a prompt to generate text.");
+      return;
+    }
+
+    try {
+      this.generatedResult = this.llm.generate(prompt, CONFIG.DEFAULT_MAX_LENGTH, temperature);
       this.showStep(3);
       this.typewriterEffect(this.generatedResult.text);
+    } catch (error) {
+      this.showError(error.message || "Failed to generate text. Please try again.");
+      console.error("Generation error:", error);
     }
   }
 
@@ -448,11 +771,15 @@ class PlainTextAI {
   typewriterEffect(text) {
     const words = text.split(" ");
     let i = 0;
-    const speed = 100; // milliseconds per word
 
     this.elements.generatedText.textContent = "";
     this.elements.generatedText.style.width = "100%";
     this.elements.generatedText.style.height = "auto";
+
+    // Hide action buttons during typing
+    this.elements.explainReasoningBtn.classList.add("hidden");
+    this.elements.regenerateBtn.classList.add("hidden");
+    this.elements.newPromptBtn.classList.add("hidden");
 
     const typeWord = () => {
       if (i < words.length) {
@@ -460,7 +787,7 @@ class PlainTextAI {
         i++;
         this.elements.generatedText.scrollTop =
           this.elements.generatedText.scrollHeight;
-        setTimeout(typeWord, speed);
+        setTimeout(typeWord, CONFIG.TYPEWRITER_SPEED);
       } else {
         this.elements.generatedText.style.height = "auto";
         this.elements.explainReasoningBtn.classList.remove("hidden");
@@ -476,7 +803,10 @@ class PlainTextAI {
 
   // Explain the reasoning behind the generated text
   explainReasoning() {
-    if (!this.generatedResult) return;
+    if (!this.generatedResult) {
+      this.showError("No generated text to explain.");
+      return;
+    }
 
     this.elements.animatedExplanation.innerHTML = "";
     this.elements.animatedExplanation.classList.remove("hidden");
@@ -528,6 +858,7 @@ class PlainTextAI {
 
     const explanationDiv = document.createElement("div");
     explanationDiv.classList.add("explanation");
+    explanationDiv.setAttribute("aria-live", "polite");
     this.elements.animatedExplanation.appendChild(explanationDiv);
 
     const optionsDiv = document.createElement("div");
@@ -567,30 +898,20 @@ class PlainTextAI {
         }
         currentIndex++;
         animateNextWord();
-      }, 2000);
+      }, CONFIG.EXPLANATION_DELAY);
     };
 
     animateNextWord();
   }
 
-  // Highlight a word in the explanation
+  // Highlight a word in the explanation (CSS-based)
   highlightWord(wordSpan) {
-    anime({
-      targets: wordSpan,
-      backgroundColor: "#ffeaa7",
-      duration: 300,
-      easing: "easeInOutQuad",
-    });
+    wordSpan.classList.add("word-highlighted");
   }
 
-  // Remove highlighting from a word
+  // Remove highlighting from a word (CSS-based)
   unhighlightWord(wordSpan) {
-    anime({
-      targets: wordSpan,
-      backgroundColor: "rgba(255, 234, 167, 0)",
-      duration: 300,
-      easing: "easeInOutQuad",
-    });
+    wordSpan.classList.remove("word-highlighted");
   }
 
   // Display the explanation and options for a word
@@ -612,13 +933,13 @@ class PlainTextAI {
       optionsDiv.appendChild(optionSpan);
     });
 
-    anime({
-      targets: [explanationDiv, optionsDiv],
-      opacity: [0, 1],
-      translateY: [20, 0],
-      duration: 300,
-      easing: "easeInOutQuad",
-    });
+    // Trigger CSS animations by removing and re-adding class
+    explanationDiv.classList.remove("animate-in");
+    optionsDiv.classList.remove("animate-in");
+    // Force reflow
+    void explanationDiv.offsetWidth;
+    explanationDiv.classList.add("animate-in");
+    optionsDiv.classList.add("animate-in");
   }
 
   // Update the temperature value display
