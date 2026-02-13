@@ -25,20 +25,12 @@ After training the model completes, users input a prompt as a starting text that
   <img src="https://raw.githubusercontent.com/paugm/PlainTextAI/main/demo-images/Step-2.gif" width="400" height="auto" alt="Step 2">
 </div>
 
-### Step 3: Generating Text
+### Step 3: Generating and Exploring Text
 
-The model predicts the next words based on the input prompt and the learned n-gram patterns. 
+The model predicts the next words based on the input prompt and the learned n-gram patterns. Users can also request explanations for each word choice, including the probabilities and alternative options the model considered during generation, presented through an animated explanation.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/paugm/PlainTextAI/main/demo-images/Step-3.gif" width="400" height="auto" alt="Step 3">
-</div>
-
-### Step 4: Interactive Review
-
-Users can request explanations for each word choice, including the probabilities and alternative options the model considered during generation, presented through an animated explanation.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/paugm/PlainTextAI/main/demo-images/Step-4.gif" width="400" height="auto" alt="Step 4">
 </div>
 
 ## How to use - Installation and Usage instructions
@@ -77,22 +69,17 @@ The application allows for several parameters to be customized in the main JS fi
    - **Default Value**: 3
    - **How to Customize**: Adjusting this value changes the context window size, affecting the model's predictions.
 
-2. **Smoothing Method (`smoothingMethod`)**
-   - **Description**: Specifies the technique used to handle unseen n-grams. The default is Laplace smoothing, but developers can implement custom smoothing techniques.
-   - **Default Value**: "laplace"
-   - **How to Customize**: This can be modified by implementing different smoothing methods within the `PlainTextLMBuilder` class.
-
-3. **Alpha (`alpha`)**
+2. **Alpha (`alpha`)**
    - **Description**: A smoothing parameter used in Laplace and other smoothing methods. It adjusts the weight given to unseen n-grams.
    - **Default Value**: 0.1
    - **How to Customize**: This parameter can be increased or decreased depending on the desired model behavior. A higher alpha value reduces the impact of unseen n-grams, making the model more conservative.
 
-4. **Temperature**
+3. **Temperature**
    - **Description**: Controls the randomness of the model's output. A lower temperature results in more deterministic text, while a higher temperature increases variability and creativity.
    - **Default Value**: 1.0
    - **How to Customize**: Users can adjust the temperature through a slider in the interface. This directly influences the diversity of the generated text.
 
-5. **Maximum Text Length (`maxLength`)**
+4. **Maximum Text Length (`maxLength`)**
    - **Description**: Limits the length of the generated text.
    - **Default Value**: 50 tokens
    - **How to Customize**: This can be adjusted when calling the `generate` method, allowing users to generate shorter or longer pieces of text as needed.
@@ -108,5 +95,4 @@ Originally created by [Pau Garcia-Mila](https://github.com/paugm).
 
 ## Acknowledgments
 
-- **[anime.js](https://animejs.com/)**: Utilized for animations within the user interface.
 - **[MIT License](https://opensource.org/licenses/MIT)**: This project is open-source and available under the MIT License.

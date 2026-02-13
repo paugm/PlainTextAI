@@ -51,7 +51,7 @@ class PlainTextLMBuilder {
       for (let i = 0; i < this.corpus.length; i++) {
         for (
           let j = 1;
-          j <= this.maxNgramLength && i + j <= this.corpus.length;
+          j <= this.maxNgramLength && i + j < this.corpus.length;
           j++
         ) {
           const gram = this.corpus.slice(i, i + j).join(" ");
@@ -105,7 +105,7 @@ class PlainTextLMBuilder {
     // Clamp temperature to valid range
     temperature = Math.max(0.1, Math.min(2.0, temperature));
     
-    let tokens = this.tokenizer.tokenize(prompt.toLowerCase());
+    let tokens = this.tokenizer.tokenize(prompt);
     let generated = [];
     let explanations = [];
     let options = [];
@@ -640,9 +640,11 @@ class PlainTextAI {
   // Show loading UI during model training
   showLoadingUI() {
     this.trainingStartTime = Date.now();
+    this._loadingActive = true;
     
     this.elements.uploadForm.classList.add("fade-out");
     setTimeout(() => {
+      if (!this._loadingActive) return;
       this.elements.uploadForm.classList.add("hidden");
       this.elements.progressBarContainer.classList.remove("hidden");
       this.elements.loadingContainer.classList.remove("hidden");
@@ -654,6 +656,7 @@ class PlainTextAI {
 
   // Hide loading UI after model training
   hideLoadingUI() {
+    this._loadingActive = false;
     this.elements.progressBarContainer.classList.add("fade-out");
     this.elements.loadingContainer.classList.add("fade-out");
     setTimeout(() => {
@@ -849,10 +852,11 @@ class PlainTextAI {
     });
 
     // Add generated words (to be highlighted)
-    generatedWords.forEach((word) => {
+    generatedWords.forEach((word, index) => {
       const span = document.createElement("span");
       span.textContent = word + " ";
       span.classList.add("word", "generated-word");
+      span.setAttribute("data-index", index);
       this.elements.animatedExplanation.appendChild(span);
     });
 
@@ -879,12 +883,7 @@ class PlainTextAI {
       const match = explanation.match(/Selected "(.*?)"/);
       const selectedWord = match ? match[1] : null;
 
-      const wordSpan = Array.from(
-        this.elements.animatedExplanation.querySelectorAll(".generated-word")
-      ).find(
-        (span) =>
-          span.textContent.trim().toLowerCase() === selectedWord.toLowerCase()
-      );
+      const wordSpan = this.elements.animatedExplanation.querySelector(`.generated-word[data-index="${currentIndex}"]`);
 
       if (wordSpan) {
         this.highlightWord(wordSpan);
