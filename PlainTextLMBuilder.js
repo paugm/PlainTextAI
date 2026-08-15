@@ -5,9 +5,10 @@ const CONFIG = {
   MIN_FILE_LENGTH: 100,
   ERROR_DISPLAY_TIME: 5000,
   TYPEWRITER_SPEED: 110,
-  DEFAULT_MAX_LENGTH: 40,
-  MIN_GENERATED_TOKENS: 8,
-  SENTENCE_END_GRACE: 24,
+  DEFAULT_MAX_LENGTH: 48,
+  MIN_GENERATED_TOKENS: 28,
+  MIN_SENTENCES: 3,
+  SENTENCE_END_GRACE: 20,
   DEFAULT_TEMPERATURE: 1.0,
   DEFAULT_NGRAM_SIZE: 3,
   DEFAULT_ALPHA: 0.1,
@@ -113,6 +114,7 @@ class PlainTextLMBuilder {
     const generated = [];
     const steps = [];
     const hardMax = maxLength + CONFIG.SENTENCE_END_GRACE;
+    let sentenceCount = 0;
 
     while (generated.length < hardMax) {
       const context = [...tokens, ...generated]
@@ -134,8 +136,15 @@ class PlainTextLMBuilder {
         fallback: next.fallback,
       });
 
-      const atSentenceEnd = SENTENCE_END_TOKENS.has(selectedToken);
-      if (atSentenceEnd && generated.length >= CONFIG.MIN_GENERATED_TOKENS) {
+      if (!SENTENCE_END_TOKENS.has(selectedToken)) {
+        continue;
+      }
+
+      sentenceCount += 1;
+      const longEnough = generated.length >= CONFIG.MIN_GENERATED_TOKENS;
+      const enoughSentences = sentenceCount >= CONFIG.MIN_SENTENCES;
+      const hitTarget = generated.length >= maxLength;
+      if (longEnough && (enoughSentences || hitTarget)) {
         break;
       }
     }
@@ -1140,10 +1149,7 @@ class PlainTextAI {
       timer: null,
     };
 
-    const { text } = this.generatedResult;
-    const inputPrompt = this.elements.promptInput.value.trim().toLowerCase();
-    const promptEndIndex = this.inferPromptEndIndex(text, inputPrompt);
-    this.displayExplanationText(text.slice(0, promptEndIndex), text.slice(promptEndIndex));
+    this.displayExplanationWords(this.elements.promptInput.value, steps);
 
     this.elements.animatedExplanation.classList.remove("is-hidden");
     this.updatePauseButton();
@@ -1304,40 +1310,33 @@ class PlainTextAI {
     return `Selected "${step.token}" (${pct}%) using a ${ngramLabel}.`;
   }
 
-  inferPromptEndIndex(text, inputPrompt) {
-    const fallbackToFirstWord = () => {
-      const space = text.indexOf(" ");
-      return space === -1 ? text.length : space + 1;
-    };
-
-    if (!inputPrompt) {
-      return fallbackToFirstWord();
+  explainTokenPrefix(token, isFirst) {
+    if (isFirst) {
+      return "";
     }
-
-    const foundIndex = text.toLowerCase().indexOf(inputPrompt);
-    if (foundIndex === -1) {
-      return fallbackToFirstWord();
+    if (/^[.,!?;:]+$/.test(token)) {
+      return "";
     }
-
-    return foundIndex + inputPrompt.length;
+    return " ";
   }
 
-  displayExplanationText(promptText, generatedText) {
+  displayExplanationWords(prompt, steps) {
     const host = this.elements.explainWords;
     host.replaceChildren();
 
-    const promptWords = promptText.trim().split(/\s+/).filter(Boolean);
-    promptWords.forEach((word) => {
+    const promptTokens = this.llm.tokenizer.tokenize(prompt || "");
+    promptTokens.forEach((token, i) => {
       const span = document.createElement("span");
-      span.textContent = word + " ";
+      span.textContent = this.explainTokenPrefix(token, i === 0) + token;
       span.classList.add("word", "prompt-word");
       host.appendChild(span);
     });
 
-    const generatedWords = generatedText.trim().split(/\s+/).filter(Boolean);
-    generatedWords.forEach((word, index) => {
+    const promptEnded = promptTokens.length > 0;
+    steps.forEach((step, index) => {
       const span = document.createElement("span");
-      span.textContent = word + " ";
+      const isFirst = !promptEnded && index === 0;
+      span.textContent = this.explainTokenPrefix(step.token, isFirst) + step.token;
       span.classList.add("word", "generated-word");
       span.setAttribute("data-index", String(index));
       span.title = "Jump to this word";

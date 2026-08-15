@@ -85,8 +85,8 @@ The application allows for several parameters to be customized in the main JS fi
    - **How to Customize**: Users can adjust the temperature through a slider in the interface. This directly influences the diversity of the generated text.
 
 4. **Maximum Text Length (`maxLength`)**
-   - **Description**: Caps how many tokens the model will add. Generation also stops at the first `.` `!` or `?` once a short minimum is reached, so output tends to end on a sentence.
-   - **Default Value**: 40 tokens (with a little extra room to reach a period if needed)
+   - **Description**: Soft cap on how many tokens to add. Generation keeps going until it has a few sentences (and at least ~28 tokens), then stops on `.` `!` or `?`. A single long sentence can also stop once it hits the cap.
+   - **Default Value**: 48 tokens (with a little extra room to reach a period if needed)
    - **How to Customize**: This can be adjusted when calling the `generate` method, allowing users to generate shorter or longer pieces of text as needed.
 
 
