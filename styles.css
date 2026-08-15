@@ -1,4 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=VT323&display=swap");
+/* VT323 Regular (latin), SIL Open Font License 1.1 — see fonts/OFL.txt
+   https://fonts.google.com/specimen/VT323 */
+@font-face {
+    font-family: "VT323";
+    src: url("fonts/VT323-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
 
 :root {
     --primary-color: #5436da;
@@ -19,7 +27,7 @@
 }
 
 body {
-    font-family: "Söhne", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
     margin: 0;
     padding: 0;
@@ -351,7 +359,7 @@ textarea:focus {
     line-height: 1.6;
 }
 
-/* Word Highlighting (replaced anime.js) */
+/* Word highlighting */
 .word {
     display: inline-block;
     padding: 2px;
@@ -427,7 +435,7 @@ textarea:focus {
     min-width: 120px;
 }
 
-/* Animations (replaced anime.js) */
+/* Animations */
 .fade-out {
     animation: fadeOut 0.5s var(--animation-easing) forwards;
 }
@@ -550,6 +558,35 @@ textarea:focus {
     flex-wrap: wrap;
 }
 
+/* Built-in public-domain samples */
+.sample-corpora {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--input-border);
+}
+
+.sample-corpora h3 {
+    margin-top: 0;
+}
+
+.sample-btn-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+}
+
+.sample-attribution,
+.sample-attribution p {
+    font-size: 0.85rem;
+    color: #666;
+    margin: 0.25rem 0;
+}
+
+.sample-corpora a {
+    color: var(--primary-color);
+}
+
 /* Statistics Display */
 .stat-item {
     display: flex;
@@ -647,7 +684,8 @@ footer {
         width: 100%;
     }
 
-    .saved-model-banner .btn-group {
+    .saved-model-banner .btn-group,
+    .sample-btn-group {
         flex-direction: column;
     }
 

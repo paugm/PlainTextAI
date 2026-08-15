@@ -11,7 +11,7 @@ Plain Text AI Builder operates through three main steps: training a model, gener
 
 ### Step 1: Training a Model
 
-Users upload a `.txt` file, which serves as the corpus for training the language model. The application tokenizes the uploaded text and creates n-grams (sequences of words used to predict the next word in a sequence), and builds a simple probabilistic model by analyzing the frequency of n-grams in the text.
+Users upload a `.txt` file, or pick a built-in public-domain sample, which serves as the corpus for training the language model. The application tokenizes the uploaded text and creates n-grams (sequences of words used to predict the next word in a sequence), and builds a simple probabilistic model by analyzing the frequency of n-grams in the text.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/paugm/PlainTextAI/main/demo-images/Step-1.gif" width="400" height="auto" alt="Step 1">
@@ -38,13 +38,16 @@ The model predicts the next words based on the input prompt and the learned n-gr
 ### Prerequisites
 
 - A modern web browser (e.g., Chrome, Firefox, Edge).
-- A `.txt` file containing text data for model training.
+- Optional: a `.txt` file to train on. If you don’t have one, use a built-in public-domain sample.
 
 ### Demo Training Data: Classic Literature
 
-If you don’t have training data on hand, you can download a book in `.txt` format from [Project Gutenberg](https://www.gutenberg.org/), which offers a library of over 70,000 free eBooks. For example:
-- [Romeo and Juliet](https://www.gutenberg.org/cache/epub/1513/pg1513.txt)
-- [Dracula](https://www.gutenberg.org/cache/epub/345/pg345.txt)
+If you don’t have a file on hand, use the built-in **public-domain samples** on Step 1:
+
+- **Romeo and Juliet** by William Shakespeare (complete play). Public domain. Obtained from [Project Gutenberg eBook #1513](https://www.gutenberg.org/ebooks/1513) ([plain text](https://www.gutenberg.org/files/1513/1513-0.txt)).
+- **Dracula** by Bram Stoker, Chapters I–V. Public domain in the United States (first published 1897). Obtained from [Project Gutenberg eBook #345](https://www.gutenberg.org/ebooks/345) ([plain text](https://www.gutenberg.org/files/345/345-0.txt)).
+
+The copies in `samples.js` omit Project Gutenberg headers and licenses, so they are **not** redistributed as Project Gutenberg eBooks and do not use that trademark. You can still upload any `.txt` file of your own, or download other books from [Project Gutenberg](https://www.gutenberg.org/).
 
 ### Installation
 
@@ -96,3 +99,5 @@ Originally created by [Pau Garcia-Mila](https://github.com/paugm).
 ## Acknowledgments
 
 - **[MIT License](https://opensource.org/licenses/MIT)**: This project is open-source and available under the MIT License.
+- **Sample texts**: William Shakespeare, *Romeo and Juliet* (public domain); Bram Stoker, *Dracula* (public domain in the United States). Both obtained from [Project Gutenberg](https://www.gutenberg.org/) (eBooks [#1513](https://www.gutenberg.org/ebooks/1513) and [#345](https://www.gutenberg.org/ebooks/345)). See `samples.js` for full source notes.
+- **VT323 font**: Peter Hull / The VT323 Project Authors, licensed under the [SIL Open Font License 1.1](fonts/OFL.txt), self-hosted from [Google Fonts](https://fonts.google.com/specimen/VT323).

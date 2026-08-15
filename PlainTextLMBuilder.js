@@ -362,6 +362,9 @@ class PlainTextAI {
     this.elements.uploadBtn.addEventListener("click", () =>
       this.elements.fileInput.click()
     );
+    document.querySelectorAll("[data-sample]").forEach((btn) => {
+      btn.addEventListener("click", () => this.trainFromSample(btn.dataset.sample));
+    });
     this.elements.continueBtn.addEventListener("click", () => this.showStep(2));
     this.elements.generateBtn.addEventListener("click", () =>
       this.generateText()
@@ -595,6 +598,26 @@ class PlainTextAI {
     };
 
     reader.readAsText(file);
+  }
+
+  // Train from a built-in public-domain sample (see samples.js)
+  async trainFromSample(sampleId) {
+    const sample =
+      typeof SAMPLE_CORPORA !== "undefined" ? SAMPLE_CORPORA[sampleId] : null;
+    if (!sample || !sample.text) {
+      this.showError("Sample text is not available.");
+      return;
+    }
+
+    this.showLoadingUI();
+    try {
+      await this.trainModel(sample.text);
+      this.hideLoadingUI();
+    } catch (error) {
+      this.hideLoadingUI();
+      this.showError(error.message || "An error occurred during training. Please try again.");
+      console.error("Training error:", error);
+    }
   }
 
   // Show error message to user

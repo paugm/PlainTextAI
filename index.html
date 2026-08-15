@@ -83,6 +83,34 @@
                         <button id="uploadBtn" class="btn" type="button" aria-describedby="file-upload-instructions">
                             Upload and Train Model
                         </button>
+
+                        <div class="sample-corpora" aria-labelledby="sample-heading">
+                            <h3 id="sample-heading">Or train with a public-domain sample</h3>
+                            <p>No file handy? Train immediately with a public-domain literary work obtained from <a href="https://www.gutenberg.org/" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>.</p>
+                            <div class="sample-btn-group">
+                                <button type="button" class="btn btn-secondary" id="sampleRomeoBtn" data-sample="romeo">
+                                    Romeo and Juliet
+                                </button>
+                                <button type="button" class="btn btn-secondary" id="sampleDraculaBtn" data-sample="dracula">
+                                    Dracula (Chapters I–V)
+                                </button>
+                            </div>
+                            <div class="sample-attribution">
+                                <p>
+                                    <cite>Romeo and Juliet</cite> by William Shakespeare (complete play). Public domain.
+                                    Source: <a href="https://www.gutenberg.org/ebooks/1513" target="_blank" rel="noopener noreferrer">Project Gutenberg eBook #1513</a>
+                                    (<a href="https://www.gutenberg.org/files/1513/1513-0.txt" target="_blank" rel="noopener noreferrer">1513-0.txt</a>).
+                                </p>
+                                <p>
+                                    <cite>Dracula</cite> by Bram Stoker, Chapters I–V. Public domain in the United States (first published 1897).
+                                    Source: <a href="https://www.gutenberg.org/ebooks/345" target="_blank" rel="noopener noreferrer">Project Gutenberg eBook #345</a>
+                                    (<a href="https://www.gutenberg.org/files/345/345-0.txt" target="_blank" rel="noopener noreferrer">345-0.txt</a>).
+                                </p>
+                                <p>
+                                    These copies omit Project Gutenberg headers and licenses, so they are not redistributed as Project Gutenberg eBooks.
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Training Progress -->
@@ -200,6 +228,7 @@
             </div>
         </footer>
 
+        <script src="samples.js" charset="utf-8"></script>
         <script src="PlainTextLMBuilder.js"></script>
     </body>
 </html>
