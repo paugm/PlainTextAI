@@ -827,15 +827,21 @@ class PlainTextAI {
 
   // Infer the end index of the prompt in the generated text
   inferPromptEndIndex(text, inputPrompt) {
-    const lowerText = text.toLowerCase();
-    let promptEndIndex = lowerText.indexOf(inputPrompt) + inputPrompt.length;
+    const fallbackToFirstWord = () => {
+      const space = text.indexOf(" ");
+      return space === -1 ? text.length : space + 1;
+    };
 
-    // If the exact prompt is not found, use the first word as the prompt
-    if (promptEndIndex <= inputPrompt.length) {
-      promptEndIndex = text.indexOf(" ") + 1;
+    if (!inputPrompt) {
+      return fallbackToFirstWord();
     }
 
-    return promptEndIndex;
+    const foundIndex = text.toLowerCase().indexOf(inputPrompt);
+    if (foundIndex === -1) {
+      return fallbackToFirstWord();
+    }
+
+    return foundIndex + inputPrompt.length;
   }
 
   // Display the explanation text with proper formatting
