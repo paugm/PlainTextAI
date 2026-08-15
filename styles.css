@@ -400,14 +400,50 @@ input[type="range"]:focus-visible {
     }
 }
 
+.ngram-graph {
+    height: 16rem;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, #09090b 10%, transparent);
+}
+
+@media (min-width: 640px) {
+    .ngram-graph {
+        height: 22rem;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .ngram-graph {
+        background: #18181b;
+        box-shadow: inset 0 0 0 1px color-mix(in oklab, #fff 10%, transparent);
+    }
+}
+
+.explain-words {
+    line-height: 1.75rem;
+}
+
 .word {
     display: inline;
     border-radius: 0.25rem;
     padding: 0 0.125rem;
 }
 
+.generated-word {
+    cursor: pointer;
+}
+
+.generated-word:hover {
+    background: color-mix(in oklab, #c2410c 8%, transparent);
+}
+
 .word-highlighted {
     background: #ffedd5;
+}
+
+.word-visited {
+    background: color-mix(in oklab, #c2410c 10%, transparent);
 }
 
 .prompt-word {
@@ -417,6 +453,14 @@ input[type="range"]:focus-visible {
 @media (prefers-color-scheme: dark) {
     .word-highlighted {
         background: color-mix(in oklab, #ff8904 25%, transparent);
+    }
+
+    .generated-word:hover {
+        background: color-mix(in oklab, #ff8904 16%, transparent);
+    }
+
+    .word-visited {
+        background: color-mix(in oklab, #ff8904 12%, transparent);
     }
 
     .prompt-word {

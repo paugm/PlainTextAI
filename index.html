@@ -261,7 +261,7 @@
                                 aria-live="polite"
                             ></div>
                             <div class="button-group mt-6 flex flex-wrap gap-2" role="group" aria-label="Result actions">
-                                <button id="explainReasoningBtn" class="btn btn-secondary is-hidden" type="button">Show why it picked each word</button>
+                                <button id="pauseExplainBtn" class="btn btn-secondary is-hidden" type="button" aria-pressed="false">Pause</button>
                                 <button id="regenerateBtn" class="btn btn-secondary is-hidden" type="button">Try again</button>
                                 <button id="newPromptBtn" class="btn btn-secondary is-hidden" type="button">Change the prompt</button>
                             </div>
@@ -269,9 +269,18 @@
                                 id="animatedExplanation"
                                 class="mt-8 is-hidden"
                                 role="region"
-                                aria-label="Word-by-word explanation of generated text"
-                                aria-live="polite"
-                            ></div>
+                                aria-labelledby="explain-heading"
+                            >
+                                <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                                    <h3 id="explain-heading" class="text-base/7 font-medium tracking-tight text-zinc-950 sm:text-sm/6 dark:text-zinc-100">Why it picked each word</h3>
+                                    <p id="explainProgress" class="tabular-nums text-base/7 text-zinc-500 sm:text-sm/6 dark:text-zinc-400"></p>
+                                </div>
+                                <div id="ngramGraph" class="ngram-graph mt-4" role="img" aria-labelledby="explainCaption"></div>
+                                <p class="mt-2 max-w-[56ch] text-base/7 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Circles are words it considered. Orange is the one it used. Drag them, or click a word below to jump there.</p>
+                                <div id="explainWords" class="explain-words mt-4"></div>
+                                <p id="explainCaption" class="explanation" aria-live="polite"></p>
+                                <div id="explainOptions" class="options"></div>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -312,6 +321,7 @@
             </nav>
         </dialog>
 
+        <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"></script>
         <script src="samples.js" charset="utf-8"></script>
         <script src="PlainTextLMBuilder.js"></script>
     </body>

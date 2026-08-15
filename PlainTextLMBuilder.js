@@ -330,6 +330,9 @@ class PlainTextAI {
     this.furthestStep = 0;
     this._typeToken = 0;
     this._explainToken = 0;
+    this._explain = null;
+    this._cy = null;
+    this._cyResizeObs = null;
     this.initializeElements();
     this.addEventListeners();
     this.checkForSavedModel();
@@ -351,11 +354,16 @@ class PlainTextAI {
       generateBtn: document.getElementById("generateBtn"),
       temperatureInput: document.getElementById("temperatureInput"),
       temperatureValue: document.getElementById("temperatureValue"),
-      explainReasoningBtn: document.getElementById("explainReasoningBtn"),
+      pauseExplainBtn: document.getElementById("pauseExplainBtn"),
       regenerateBtn: document.getElementById("regenerateBtn"),
       newPromptBtn: document.getElementById("newPromptBtn"),
       retrainBtn: document.getElementById("retrainBtn"),
       animatedExplanation: document.getElementById("animatedExplanation"),
+      ngramGraph: document.getElementById("ngramGraph"),
+      explainWords: document.getElementById("explainWords"),
+      explainCaption: document.getElementById("explainCaption"),
+      explainOptions: document.getElementById("explainOptions"),
+      explainProgress: document.getElementById("explainProgress"),
       generatedText: document.getElementById("generatedText"),
       trainPanel: document.getElementById("step1"),
       writePanel: document.getElementById("step2"),
@@ -397,8 +405,8 @@ class PlainTextAI {
     this.elements.newPromptBtn.addEventListener("click", () =>
       this.focusPrompt()
     );
-    this.elements.explainReasoningBtn.addEventListener("click", () =>
-      this.explainReasoning()
+    this.elements.pauseExplainBtn.addEventListener("click", () =>
+      this.toggleExplainPlayback()
     );
     this.elements.temperatureInput.addEventListener("input", () =>
       this.updateTemperatureValue()
@@ -457,6 +465,20 @@ class PlainTextAI {
         e.preventDefault();
         this.generateText();
       }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== " " && e.code !== "Space") {
+        return;
+      }
+      if (e.target.closest("input, textarea, button, select, a, [contenteditable]")) {
+        return;
+      }
+      if (this.elements.animatedExplanation.classList.contains("is-hidden")) {
+        return;
+      }
+      e.preventDefault();
+      this.toggleExplainPlayback();
     });
 
     ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
@@ -671,6 +693,14 @@ class PlainTextAI {
     }
     if (stepNumber === 3 && this.elements.explorePanel) {
       this.elements.explorePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (stepNumber < 2 && this._explain && !this._explain.paused) {
+      this._explain.paused = true;
+      if (this._explain.timer) {
+        clearTimeout(this._explain.timer);
+        this._explain.timer = null;
+      }
+      this.updatePauseButton();
     }
   }
 
@@ -1010,11 +1040,12 @@ class PlainTextAI {
     }
 
     try {
+      this.stopExplain();
       this.generatedResult = this.llm.generate(prompt, CONFIG.DEFAULT_MAX_LENGTH, temperature);
-      this.elements.animatedExplanation.classList.add("is-hidden");
-      this.elements.animatedExplanation.innerHTML = "";
       this.showStep(3);
       this.typewriterEffect(this.generatedResult.text);
+      this.showResultActions();
+      this.startExplain();
     } catch (error) {
       this.showError(error.message || "Could not generate text. Try again.");
       console.error("Generation error:", error);
@@ -1022,7 +1053,7 @@ class PlainTextAI {
   }
 
   showResultActions() {
-    this.elements.explainReasoningBtn.classList.remove("is-hidden");
+    this.elements.pauseExplainBtn.classList.remove("is-hidden");
     this.elements.regenerateBtn.classList.remove("is-hidden");
     this.elements.newPromptBtn.classList.remove("is-hidden");
   }
@@ -1034,14 +1065,10 @@ class PlainTextAI {
 
     this.elements.generatedText.textContent = "";
     this.elements.generatedText.classList.remove("is-typing");
-    this.elements.explainReasoningBtn.classList.add("is-hidden");
-    this.elements.regenerateBtn.classList.add("is-hidden");
-    this.elements.newPromptBtn.classList.add("is-hidden");
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
       this.elements.generatedText.textContent = text;
-      this.showResultActions();
       return;
     }
 
@@ -1057,33 +1084,207 @@ class PlainTextAI {
         setTimeout(typeWord, CONFIG.TYPEWRITER_SPEED);
       } else {
         this.elements.generatedText.classList.remove("is-typing");
-        this.showResultActions();
       }
     };
     typeWord();
   }
 
-  // Explain the reasoning behind the generated text
-  explainReasoning() {
+  prefersReducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  stopExplain() {
+    if (this._explain?.timer) {
+      clearTimeout(this._explain.timer);
+    }
+    this._explain = null;
+    this.destroyGraph();
+    if (this.elements.explainWords) {
+      this.elements.explainWords.replaceChildren();
+    }
+    if (this.elements.explainCaption) {
+      this.elements.explainCaption.textContent = "";
+      this.elements.explainCaption.classList.remove("animate-in");
+    }
+    if (this.elements.explainOptions) {
+      this.elements.explainOptions.replaceChildren();
+      this.elements.explainOptions.classList.remove("animate-in");
+    }
+    if (this.elements.explainProgress) {
+      this.elements.explainProgress.textContent = "";
+    }
+    this.elements.animatedExplanation.classList.add("is-hidden");
+  }
+
+  startExplain() {
     if (!this.generatedResult) {
-      this.showError("Generate some text first.");
       return;
     }
 
     this._explainToken += 1;
-    this.elements.animatedExplanation.innerHTML = "";
-    this.elements.animatedExplanation.classList.remove("is-hidden");
-    this.elements.animatedExplanation.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const id = this._explainToken;
+    const steps = this.generatedResult.steps || [];
+    const reduceMotion = this.prefersReducedMotion();
 
-    const { text, steps } = this.generatedResult;
+    this._explain = {
+      id,
+      steps,
+      index: 0,
+      paused: reduceMotion,
+      done: steps.length === 0,
+      timer: null,
+    };
+
+    const { text } = this.generatedResult;
     const inputPrompt = this.elements.promptInput.value.trim().toLowerCase();
     const promptEndIndex = this.inferPromptEndIndex(text, inputPrompt);
+    this.displayExplanationText(text.slice(0, promptEndIndex), text.slice(promptEndIndex));
 
-    const promptText = text.slice(0, promptEndIndex);
-    const generatedText = text.slice(promptEndIndex);
+    this.elements.animatedExplanation.classList.remove("is-hidden");
+    this.updatePauseButton();
 
-    this.displayExplanationText(promptText, generatedText);
-    this.animateExplanation(steps || []);
+    if (steps.length === 0) {
+      return;
+    }
+
+    this.renderExplainStep(0);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!this._explain || this._explain.id !== id) {
+          return;
+        }
+        this.ensureGraph();
+        this.updateGraph(this._explain.steps[this._explain.index]);
+      });
+    });
+
+    if (!this._explain.paused && !this._explain.done) {
+      this.scheduleExplainAdvance();
+    }
+  }
+
+  scheduleExplainAdvance() {
+    if (!this._explain) {
+      return;
+    }
+    if (this._explain.timer) {
+      clearTimeout(this._explain.timer);
+    }
+    const id = this._explain.id;
+    this._explain.timer = setTimeout(() => {
+      if (!this._explain || this._explain.id !== id) {
+        return;
+      }
+      this.gotoExplainStep(this._explain.index + 1);
+    }, CONFIG.EXPLANATION_DELAY);
+  }
+
+  gotoExplainStep(index, options = {}) {
+    if (!this._explain) {
+      return;
+    }
+    const { pause = false } = options;
+    const last = this._explain.steps.length;
+
+    if (index >= last) {
+      this._explain.index = Math.max(0, last - 1);
+      this._explain.done = true;
+      this._explain.paused = true;
+      if (this._explain.timer) {
+        clearTimeout(this._explain.timer);
+        this._explain.timer = null;
+      }
+      this.updatePauseButton();
+      return;
+    }
+
+    this._explain.index = index;
+    this._explain.done = false;
+    if (pause) {
+      this._explain.paused = true;
+      if (this._explain.timer) {
+        clearTimeout(this._explain.timer);
+        this._explain.timer = null;
+      }
+    }
+    this.renderExplainStep(index);
+    this.updateGraph(this._explain.steps[index]);
+    this.updatePauseButton();
+    if (!this._explain.paused && !this._explain.done) {
+      this.scheduleExplainAdvance();
+    }
+  }
+
+  toggleExplainPlayback() {
+    if (!this._explain || !this._explain.steps.length) {
+      return;
+    }
+
+    if (this._explain.done) {
+      this._explain.done = false;
+      this._explain.paused = false;
+      this.gotoExplainStep(0);
+      return;
+    }
+
+    this._explain.paused = !this._explain.paused;
+    if (this._explain.paused) {
+      if (this._explain.timer) {
+        clearTimeout(this._explain.timer);
+        this._explain.timer = null;
+      }
+    } else {
+      this.scheduleExplainAdvance();
+    }
+    this.updatePauseButton();
+  }
+
+  updatePauseButton() {
+    const btn = this.elements.pauseExplainBtn;
+    if (!btn) {
+      return;
+    }
+    if (!this._explain) {
+      btn.textContent = "Pause";
+      btn.setAttribute("aria-pressed", "false");
+      return;
+    }
+    if (this._explain.done) {
+      btn.textContent = "Play again";
+      btn.setAttribute("aria-pressed", "false");
+      return;
+    }
+    if (this._explain.paused) {
+      btn.textContent = "Resume";
+      btn.setAttribute("aria-pressed", "true");
+      return;
+    }
+    btn.textContent = "Pause";
+    btn.setAttribute("aria-pressed", "false");
+  }
+
+  renderExplainStep(index) {
+    const step = this._explain.steps[index];
+    if (!step) {
+      return;
+    }
+
+    const words = this.elements.explainWords.querySelectorAll(".generated-word");
+    words.forEach((wordSpan) => {
+      const i = Number(wordSpan.getAttribute("data-index"));
+      wordSpan.classList.toggle("word-highlighted", i === index);
+      wordSpan.classList.toggle("word-visited", i < index);
+    });
+
+    if (this.elements.explainProgress) {
+      this.elements.explainProgress.textContent = `${index + 1} / ${this._explain.steps.length}`;
+    }
+
+    this.displayExplanationAndOptions(
+      this.formatStepExplanation(step),
+      step.alternatives || [],
+      step.token
+    );
   }
 
   formatStepExplanation(step) {
@@ -1098,7 +1299,6 @@ class PlainTextAI {
     return `Selected "${step.token}" (${pct}%) using a ${ngramLabel}.`;
   }
 
-  // Infer the end index of the prompt in the generated text
   inferPromptEndIndex(text, inputPrompt) {
     const fallbackToFirstWord = () => {
       const space = text.indexOf(" ");
@@ -1117,92 +1317,39 @@ class PlainTextAI {
     return foundIndex + inputPrompt.length;
   }
 
-  // Display the explanation text with proper formatting
   displayExplanationText(promptText, generatedText) {
-    const promptWords = promptText.trim().split(/\s+/);
-    const generatedWords = generatedText.trim().split(/\s+/);
+    const host = this.elements.explainWords;
+    host.replaceChildren();
 
-    // Add prompt words (not highlighted)
+    const promptWords = promptText.trim().split(/\s+/).filter(Boolean);
     promptWords.forEach((word) => {
       const span = document.createElement("span");
       span.textContent = word + " ";
       span.classList.add("word", "prompt-word");
-      this.elements.animatedExplanation.appendChild(span);
+      host.appendChild(span);
     });
 
-    // Add generated words (to be highlighted)
+    const generatedWords = generatedText.trim().split(/\s+/).filter(Boolean);
     generatedWords.forEach((word, index) => {
       const span = document.createElement("span");
       span.textContent = word + " ";
       span.classList.add("word", "generated-word");
-      span.setAttribute("data-index", index);
-      this.elements.animatedExplanation.appendChild(span);
+      span.setAttribute("data-index", String(index));
+      span.title = "Jump to this word";
+      span.addEventListener("click", () => this.gotoExplainStep(index, { pause: true }));
+      host.appendChild(span);
     });
-
-    const explanationDiv = document.createElement("div");
-    explanationDiv.classList.add("explanation");
-    explanationDiv.setAttribute("aria-live", "polite");
-    this.elements.animatedExplanation.appendChild(explanationDiv);
-
-    const optionsDiv = document.createElement("div");
-    optionsDiv.classList.add("options");
-    this.elements.animatedExplanation.appendChild(optionsDiv);
   }
 
-  // Animate the explanation of the generated text
-  animateExplanation(steps) {
-    const token = this._explainToken;
-    let currentIndex = 0;
-
-    const animateNextWord = () => {
-      if (token !== this._explainToken) return;
-      if (currentIndex >= steps.length) return;
-
-      const step = steps[currentIndex];
-      const wordSpan = this.elements.animatedExplanation.querySelector(`.generated-word[data-index="${currentIndex}"]`);
-
-      if (wordSpan) {
-        this.highlightWord(wordSpan);
-        wordSpan.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
-
-      this.displayExplanationAndOptions(
-        this.formatStepExplanation(step),
-        step.alternatives || [],
-        step.token
-      );
-
-      setTimeout(() => {
-        if (wordSpan) {
-          this.unhighlightWord(wordSpan);
-        }
-        currentIndex++;
-        animateNextWord();
-      }, CONFIG.EXPLANATION_DELAY);
-    };
-
-    animateNextWord();
-  }
-
-  // Highlight a word in the explanation (CSS-based)
-  highlightWord(wordSpan) {
-    wordSpan.classList.add("word-highlighted");
-  }
-
-  // Remove highlighting from a word (CSS-based)
-  unhighlightWord(wordSpan) {
-    wordSpan.classList.remove("word-highlighted");
-  }
-
-  // Display the explanation and options for a word
   displayExplanationAndOptions(explanation, wordOptions, selectedWord) {
-    const explanationDiv =
-      this.elements.animatedExplanation.querySelector(".explanation");
-    const optionsDiv =
-      this.elements.animatedExplanation.querySelector(".options");
+    const explanationDiv = this.elements.explainCaption;
+    const optionsDiv = this.elements.explainOptions;
+    if (!explanationDiv || !optionsDiv) {
+      return;
+    }
 
     explanationDiv.textContent = explanation || "No explanation available.";
-    optionsDiv.innerHTML = "";
+    optionsDiv.replaceChildren();
     wordOptions.forEach(([token, prob]) => {
       const row = document.createElement("div");
       row.className = "option-row";
@@ -1229,13 +1376,288 @@ class PlainTextAI {
       optionsDiv.appendChild(row);
     });
 
-    // Trigger CSS animations by removing and re-adding class
     explanationDiv.classList.remove("animate-in");
     optionsDiv.classList.remove("animate-in");
-    // Force reflow
     void explanationDiv.offsetWidth;
     explanationDiv.classList.add("animate-in");
     optionsDiv.classList.add("animate-in");
+  }
+
+  graphTheme() {
+    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (dark) {
+      return {
+        label: "#f4f4f5",
+        context: "#27272a",
+        contextBorder: "#52525b",
+        alt: "#18181b",
+        altBorder: "#3f3f46",
+        chosen: "#ff8904",
+        chosenLabel: "#09090b",
+        fallback: "#3f3f46",
+        edge: "rgba(255,255,255,0.18)",
+        edgeChosen: "#ff8904",
+      };
+    }
+    return {
+      label: "#09090b",
+      context: "#f4f4f5",
+      contextBorder: "#d4d4d8",
+      alt: "#ffffff",
+      altBorder: "#e4e4e7",
+      chosen: "#c2410c",
+      chosenLabel: "#ffffff",
+      fallback: "#e4e4e7",
+      edge: "rgba(9,9,11,0.16)",
+      edgeChosen: "#c2410c",
+    };
+  }
+
+  graphStylesheet() {
+    const t = this.graphTheme();
+    return [
+      {
+        selector: "node",
+        style: {
+          label: "data(label)",
+          color: t.label,
+          "font-family": "VT323, ui-monospace, monospace",
+          "font-size": 16,
+          "text-valign": "center",
+          "text-halign": "center",
+          "text-wrap": "wrap",
+          "text-max-width": 72,
+          width: 36,
+          height: 36,
+          "border-width": 1,
+          "overlay-padding": 4,
+        },
+      },
+      {
+        selector: 'node[kind = "context"]',
+        style: {
+          shape: "round-rectangle",
+          width: 52,
+          height: 32,
+          "background-color": t.context,
+          "border-color": t.contextBorder,
+        },
+      },
+      {
+        selector: 'node[kind = "fallback"]',
+        style: {
+          shape: "diamond",
+          "background-color": t.fallback,
+          "border-color": t.contextBorder,
+          width: 40,
+          height: 40,
+        },
+      },
+      {
+        selector: 'node[kind = "alt"]',
+        style: {
+          "background-color": t.alt,
+          "border-color": t.altBorder,
+          width: "mapData(prob, 0, 0.6, 28, 56)",
+          height: "mapData(prob, 0, 0.6, 28, 56)",
+        },
+      },
+      {
+        selector: 'node[kind = "chosen"]',
+        style: {
+          "background-color": t.chosen,
+          "border-color": t.chosen,
+          color: t.chosenLabel,
+          width: "mapData(prob, 0, 0.6, 36, 64)",
+          height: "mapData(prob, 0, 0.6, 36, 64)",
+          "border-width": 2,
+        },
+      },
+      {
+        selector: "edge",
+        style: {
+          width: "mapData(weight, 0, 0.6, 1, 7)",
+          "line-color": t.edge,
+          "target-arrow-color": t.edge,
+          "target-arrow-shape": "triangle",
+          "curve-style": "bezier",
+          "arrow-scale": 0.8,
+        },
+      },
+      {
+        selector: 'edge[kind = "context"]',
+        style: {
+          width: 2,
+          "line-color": t.contextBorder,
+          "target-arrow-color": t.contextBorder,
+          "curve-style": "straight",
+        },
+      },
+      {
+        selector: 'edge[kind = "chosen"]',
+        style: {
+          "line-color": t.edgeChosen,
+          "target-arrow-color": t.edgeChosen,
+          width: "mapData(weight, 0, 0.6, 3, 8)",
+        },
+      },
+    ];
+  }
+
+  destroyGraph() {
+    if (this._cyResizeObs) {
+      this._cyResizeObs.disconnect();
+      this._cyResizeObs = null;
+    }
+    if (this._graphSchemeListener && this._onGraphScheme) {
+      this._graphSchemeListener.removeEventListener("change", this._onGraphScheme);
+      this._graphSchemeListener = null;
+      this._onGraphScheme = null;
+    }
+    if (this._cy) {
+      this._cy.destroy();
+      this._cy = null;
+    }
+  }
+
+  ensureGraph() {
+    const container = this.elements.ngramGraph;
+    if (!container) {
+      return;
+    }
+    if (typeof window.cytoscape !== "function") {
+      container.classList.add("is-hidden");
+      return;
+    }
+    container.classList.remove("is-hidden");
+    if (this._cy) {
+      this._cy.resize();
+      return;
+    }
+
+    this._cy = window.cytoscape({
+      container,
+      elements: [],
+      style: this.graphStylesheet(),
+      minZoom: 0.35,
+      maxZoom: 2.6,
+      wheelSensitivity: 0.25,
+      boxSelectionEnabled: false,
+      autounselectify: true,
+      userZoomingEnabled: true,
+      userPanningEnabled: true,
+    });
+
+    this._cyResizeObs = new ResizeObserver(() => {
+      if (this._cy) {
+        this._cy.resize();
+      }
+    });
+    this._cyResizeObs.observe(container);
+
+    this._onGraphScheme = () => {
+      if (!this._cy) {
+        return;
+      }
+      this._cy.style().fromJson(this.graphStylesheet()).update();
+    };
+    this._graphSchemeListener = window.matchMedia("(prefers-color-scheme: dark)");
+    if (this._graphSchemeListener.addEventListener) {
+      this._graphSchemeListener.addEventListener("change", this._onGraphScheme);
+    }
+  }
+
+  graphElementsForStep(step) {
+    const elements = [];
+    const contextTokens = step.context ? step.context.split(" ").filter(Boolean) : [];
+    const alts = step.alternatives || [];
+
+    if (contextTokens.length === 0) {
+      elements.push({
+        group: "nodes",
+        data: { id: "root", label: "?", kind: "fallback" },
+        position: { x: 80, y: 160 },
+      });
+    } else {
+      contextTokens.forEach((token, i) => {
+        elements.push({
+          group: "nodes",
+          data: { id: `c${i}`, label: token, kind: "context" },
+          position: { x: 70 + i * 108, y: 70 },
+        });
+        if (i > 0) {
+          elements.push({
+            group: "edges",
+            data: {
+              id: `ce${i}`,
+              source: `c${i - 1}`,
+              target: `c${i}`,
+              kind: "context",
+              weight: 0.4,
+            },
+          });
+        }
+      });
+    }
+
+    const origin = contextTokens.length ? `c${contextTokens.length - 1}` : "root";
+    const originX = contextTokens.length ? 70 + (contextTokens.length - 1) * 108 : 80;
+
+    alts.forEach(([token, prob], i) => {
+      const chosen = token === step.token;
+      const t = alts.length === 1 ? 0.5 : i / (alts.length - 1);
+      elements.push({
+        group: "nodes",
+        data: {
+          id: `a${i}`,
+          label: token,
+          kind: chosen ? "chosen" : "alt",
+          prob,
+        },
+        position: { x: originX + 180, y: 36 + t * 260 },
+      });
+      elements.push({
+        group: "edges",
+        data: {
+          id: `e${i}`,
+          source: origin,
+          target: `a${i}`,
+          kind: chosen ? "chosen" : "alt",
+          weight: prob,
+        },
+      });
+    });
+
+    return elements;
+  }
+
+  updateGraph(step) {
+    if (!this._cy || !step) {
+      return;
+    }
+    const reduceMotion = this.prefersReducedMotion();
+    this._cy.elements().remove();
+    this._cy.add(this.graphElementsForStep(step));
+
+    const contextNodes = this._cy.nodes('[kind = "context"], [kind = "fallback"]');
+    contextNodes.lock();
+    this._cy.nodes('[kind = "alt"], [kind = "chosen"]').unlock();
+
+    this._cy.layout({
+      name: "cose",
+      animate: !reduceMotion,
+      animationDuration: 420,
+      randomize: false,
+      padding: 28,
+      fit: true,
+      nodeRepulsion: 9000,
+      idealEdgeLength: 84,
+      edgeElasticity: 80,
+      gravity: 0.35,
+      numIter: 600,
+      initialTemp: 200,
+      minTemp: 1,
+    }).run();
   }
 
   // Update the temperature value display

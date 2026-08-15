@@ -27,7 +27,7 @@ After training the model completes, users input a prompt as a starting text that
 
 ### Step 3: Generating and Exploring Text
 
-The model predicts the next words based on the input prompt and the learned n-gram patterns. Users can also request explanations for each word choice, including the probabilities and alternative options the model considered during generation, presented through an animated explanation.
+The model predicts the next words based on the input prompt and the learned n-gram patterns. After it writes, a walkthrough starts on its own: each chosen word, the alternatives, and a small graph of the n-gram that fired. You can pause it, or click a word to jump there.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/paugm/PlainTextAI/main/demo-images/Step-3.gif" width="400" height="auto" alt="Step 3">
@@ -103,3 +103,4 @@ Originally created by [Pau Garcia-Mila](https://github.com/paugm).
 - **[MIT License](https://opensource.org/licenses/MIT)**: This project is open-source and available under the MIT License.
 - **Sample texts**: William Shakespeare, *Romeo and Juliet* (public domain); Bram Stoker, *Dracula* (public domain in the United States). Both obtained from [Project Gutenberg](https://www.gutenberg.org/) (eBooks [#1513](https://www.gutenberg.org/ebooks/1513) and [#345](https://www.gutenberg.org/ebooks/345)). See `samples.js` and the files in `samples/` for source notes.
 - **VT323 font**: Peter Hull / The VT323 Project Authors, licensed under the [SIL Open Font License 1.1](fonts/OFL.txt), self-hosted from [Google Fonts](https://fonts.google.com/specimen/VT323).
+- **[Cytoscape.js](https://js.cytoscape.org/)**: graph view of n-gram choices during the explanation walkthrough.
