@@ -122,16 +122,18 @@
                                 </div>
 
                                 <div class="sample-corpora flex flex-col justify-center" aria-labelledby="sample-heading">
-                                    <h3 id="sample-heading" class="text-base/7 font-medium text-zinc-950 sm:text-sm/6 dark:text-zinc-100">Or use a book that is already here</h3>
-                                    <p class="mt-1 text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">These come from <a href="https://www.gutenberg.org/" class="text-zinc-950 underline decoration-zinc-950/20 underline-offset-4 dark:text-zinc-100 dark:decoration-white/20" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>. Click one and training starts.</p>
+                                    <h3 id="sample-heading" class="text-base/7 font-medium text-zinc-950 sm:text-sm/6 dark:text-zinc-100">Or use a book from the samples folder</h3>
+                                    <p class="mt-1 text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">These come from <a href="https://www.gutenberg.org/" class="text-zinc-950 underline decoration-zinc-950/20 underline-offset-4 dark:text-zinc-100 dark:decoration-white/20" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>. Click one to train. If you opened this page as a file, pick the matching .txt when asked.</p>
                                     <div class="sample-btn-group mt-5 grid gap-3">
-                                        <button type="button" class="sample-card" id="sampleRomeoBtn" data-sample="romeo">
+                                        <button type="button" class="sample-card" id="sampleRomeoBtn" data-sample="romeo" aria-label="Train on Romeo and Juliet. File samples/romeo-and-juliet.txt">
                                             <span class="font-medium">Romeo and Juliet</span>
                                             <span class="mt-1 block text-zinc-600 dark:text-zinc-400">William Shakespeare · complete play</span>
+                                            <span class="mt-1 block text-zinc-500 dark:text-zinc-500">samples/romeo-and-juliet.txt</span>
                                         </button>
-                                        <button type="button" class="sample-card" id="sampleDraculaBtn" data-sample="dracula">
+                                        <button type="button" class="sample-card" id="sampleDraculaBtn" data-sample="dracula" aria-label="Train on Dracula chapters I to V. File samples/dracula-chapters-i-v.txt">
                                             <span class="font-medium">Dracula</span>
                                             <span class="mt-1 block text-zinc-600 dark:text-zinc-400">Bram Stoker · chapters I–V</span>
+                                            <span class="mt-1 block text-zinc-500 dark:text-zinc-500">samples/dracula-chapters-i-v.txt</span>
                                         </button>
                                     </div>
                                     <details class="sample-attribution mt-5">

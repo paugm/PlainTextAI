@@ -20,8 +20,8 @@ class PlainTextLMBuilder {
     this.corpus = "";
     this.model = new Map();
     this.config = {
-      ngramSize: config.ngramSize || CONFIG.DEFAULT_NGRAM_SIZE,
-      alpha: config.alpha || CONFIG.DEFAULT_ALPHA,
+      ngramSize: Math.max(1, config.ngramSize ?? CONFIG.DEFAULT_NGRAM_SIZE),
+      alpha: config.alpha ?? CONFIG.DEFAULT_ALPHA,
     };
     this.stats = {
       uniqueNgrams: 0,
@@ -31,7 +31,7 @@ class PlainTextLMBuilder {
     this.vocabulary = new Set();
     this.vocabularyArray = []; // Cached array for performance
     this.tokenizer = new OptimizedTokenizer();
-    this.maxNgramLength = Math.max(3, this.config.ngramSize);
+    this.maxNgramLength = this.config.ngramSize;
     this.onProgress = null; // Progress callback
   }
 
@@ -105,46 +105,58 @@ class PlainTextLMBuilder {
     // Clamp temperature to valid range
     temperature = Math.max(0.1, Math.min(2.0, temperature));
     
-    let tokens = this.tokenizer.tokenize(prompt);
-    let generated = [];
-    let explanations = [];
-    let options = [];
+    const tokens = this.tokenizer.tokenize(prompt);
+    const generated = [];
+    const steps = [];
 
     while (generated.length < maxLength) {
       const context = [...tokens, ...generated]
         .slice(-this.maxNgramLength)
         .join(" ");
-      const nextTokens = this.getNextTokens(context, temperature);
-
-      const [selectedToken, probability] = this.selectToken(nextTokens);
-      generated.push(selectedToken);
-
-      explanations.push(
-        `Selected "${selectedToken}" (probability: ${(
-          probability * 100
-        ).toFixed(2)}%)`
-      );
-      options.push(nextTokens);
-
-      if ([".", "!", "?"].includes(selectedToken)) {
+      const next = this.getNextTokens(context, temperature);
+      if (!next.tokens.length) {
         break;
       }
+
+      const [selectedToken, probability] = this.selectToken(next.tokens);
+      generated.push(selectedToken);
+      steps.push({
+        token: selectedToken,
+        probability,
+        alternatives: next.tokens,
+        orderUsed: next.orderUsed,
+        context: next.context,
+        fallback: next.fallback,
+      });
     }
 
     const generatedText = this.tokenizer.detokenize([...tokens, ...generated]);
 
     return {
       text: generatedText,
-      explanations: explanations,
-      options: options,
+      steps,
     };
+  }
+
+  renormalize(pairs) {
+    let mass = 0;
+    for (const [, probability] of pairs) {
+      mass += probability;
+    }
+    if (mass <= 0) {
+      const uniform = pairs.length ? 1 / pairs.length : 0;
+      return pairs.map(([token]) => [token, uniform]);
+    }
+    return pairs.map(([token, probability]) => [token, probability / mass]);
   }
 
   // Get the next possible tokens based on the given context
   getNextTokens(gram, temperature = 1.0, topK = 10) {
     const gramTokens = gram.split(" ");
     let possibilities;
-    
+    let orderUsed = 0;
+    let matchedContext = "";
+
     for (
       let i = Math.min(gramTokens.length, this.maxNgramLength);
       i > 0;
@@ -153,33 +165,37 @@ class PlainTextLMBuilder {
       const subGram = gramTokens.slice(-i).join(" ");
       possibilities = this.model.get(subGram);
       if (possibilities && possibilities.size > 0) {
+        orderUsed = i;
+        matchedContext = subGram;
         break;
       }
     }
 
-    // Use cached vocabulary array
     const vocabArray = this.vocabularyArray;
 
     if (!possibilities || possibilities.size === 0) {
-      // Return random sample from vocabulary with uniform probability
       const sampled = [];
       const used = new Set();
       while (sampled.length < Math.min(topK, vocabArray.length)) {
         const idx = Math.floor(Math.random() * vocabArray.length);
         if (!used.has(idx)) {
           used.add(idx);
-          sampled.push([vocabArray[idx], 1 / this.vocabulary.size]);
+          sampled.push([vocabArray[idx], 1]);
         }
       }
-      return sampled;
+      return {
+        tokens: this.renormalize(sampled),
+        orderUsed: 0,
+        context: "",
+        fallback: true,
+      };
     }
 
-    // Calculate total count using a simple loop (faster than reduce)
     let total = 0;
     for (const count of possibilities.values()) {
       total += count;
     }
-    
+
     const adjustedProbabilities = new Map();
     const vocabSize = this.vocabulary.size;
     const alpha = this.config.alpha;
@@ -190,40 +206,30 @@ class PlainTextLMBuilder {
       adjustedProbabilities.set(token, Math.pow(prob, 1 / temperature));
     }
 
-    // Add random tokens from vocabulary for diversity
-    const numRandomTokens = Math.max(2, Math.floor(topK / 4));
-    const used = new Set(adjustedProbabilities.keys());
-    let added = 0;
-    
-    while (added < numRandomTokens && used.size < vocabArray.length) {
-      const idx = Math.floor(Math.random() * vocabArray.length);
-      const token = vocabArray[idx];
-      if (!used.has(token)) {
-        used.add(token);
-        adjustedProbabilities.set(
-          token,
-          Math.pow(alpha / denominator, 1 / temperature)
-        );
-        added++;
-      }
-    }
-
-    // Calculate total adjusted probability using a simple loop
     let totalAdjustedProb = 0;
     for (const prob of adjustedProbabilities.values()) {
       totalAdjustedProb += prob;
     }
-    
+
     const normalizedProbs = Array.from(adjustedProbabilities.entries()).map(
-      ([token, prob]) => [token, prob / totalAdjustedProb]
+      ([token, prob]) => [token, totalAdjustedProb > 0 ? prob / totalAdjustedProb : 0]
     );
 
-    // Sort by probability and take top K
-    return normalizedProbs.sort((a, b) => b[1] - a[1]).slice(0, topK);
+    const top = normalizedProbs.sort((a, b) => b[1] - a[1]).slice(0, topK);
+
+    return {
+      tokens: this.renormalize(top),
+      orderUsed,
+      context: matchedContext,
+      fallback: false,
+    };
   }
   
   // Select a token based on probabilities
   selectToken(tokens) {
+    if (!tokens || tokens.length === 0) {
+      throw new Error("Could not pick a next word.");
+    }
     const randomValue = Math.random();
     let cumulativeProbability = 0;
     for (const [token, probability] of tokens) {
@@ -274,9 +280,12 @@ class PlainTextLMBuilder {
       
       this.vocabulary = new Set(data.vocabulary);
       this.vocabularyArray = Array.from(this.vocabulary);
-      this.config = data.config || { ngramSize: CONFIG.DEFAULT_NGRAM_SIZE, alpha: CONFIG.DEFAULT_ALPHA };
+      this.config = {
+        ngramSize: Math.max(1, data.config?.ngramSize ?? CONFIG.DEFAULT_NGRAM_SIZE),
+        alpha: data.config?.alpha ?? CONFIG.DEFAULT_ALPHA,
+      };
       this.stats = data.stats || { uniqueNgrams: 0, vocabularySize: 0, totalTokens: 0 };
-      this.maxNgramLength = Math.max(3, this.config.ngramSize);
+      this.maxNgramLength = this.config.ngramSize;
       
       return true;
     } catch (error) {
@@ -718,24 +727,101 @@ class PlainTextAI {
     reader.readAsText(file);
   }
 
-  // Train from a built-in public-domain sample (see samples.js)
+  // Train from a demo .txt in the samples/ folder (see samples.js)
   async trainFromSample(sampleId) {
     const sample =
       typeof SAMPLE_CORPORA !== "undefined" ? SAMPLE_CORPORA[sampleId] : null;
-    if (!sample || !sample.text) {
+    if (!sample || !sample.file) {
       this.showError("That sample text is missing.");
+      return;
+    }
+
+    let text;
+    try {
+      text = await this.loadSampleText(sample);
+    } catch (error) {
+      if (error && error.message) {
+        this.showError(error.message);
+      }
       return;
     }
 
     this.showLoadingUI();
     try {
-      await this.trainModel(sample.text);
+      await this.trainModel(text);
       this.hideLoadingUI();
     } catch (error) {
       this.hideLoadingUI(false);
       this.showError(error.message || "Training failed. Try again.");
       console.error("Training error:", error);
     }
+  }
+
+  // Hosted pages can fetch the .txt. file:// cannot (Chrome), so pick the file.
+  async loadSampleText(sample) {
+    if (window.location.protocol !== "file:") {
+      const url = new URL(sample.file, window.location.href);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Could not load ${sample.file}.`);
+      }
+      return response.text();
+    }
+
+    return this.pickSampleFile(sample);
+  }
+
+  pickSampleFile(sample) {
+    const filename = sample.file.split("/").pop();
+    this.showSuccess(`Choose ${filename} from the samples folder.`);
+
+    return new Promise((resolve, reject) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".txt,text/plain";
+
+      let settled = false;
+      const finish = (error, text) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.removeEventListener("focus", onWindowFocus);
+        if (error) {
+          reject(error);
+        } else {
+          resolve(text);
+        }
+      };
+
+      const onWindowFocus = () => {
+        window.setTimeout(() => {
+          if (!input.files || input.files.length === 0) {
+            finish(new Error("No file selected."));
+          }
+        }, 400);
+      };
+
+      input.addEventListener(
+        "change",
+        () => {
+          const file = input.files && input.files[0];
+          if (!file) {
+            finish(new Error("No file selected."));
+            return;
+          }
+          const reader = new FileReader();
+          reader.onerror = () =>
+            finish(new Error("Could not read that file. Try again."));
+          reader.onload = () => finish(null, String(reader.result || ""));
+          reader.readAsText(file);
+        },
+        { once: true }
+      );
+
+      window.addEventListener("focus", onWindowFocus, { once: true });
+      input.click();
+    });
   }
 
   // Show error message to user
@@ -989,7 +1075,7 @@ class PlainTextAI {
     this.elements.animatedExplanation.classList.remove("is-hidden");
     this.elements.animatedExplanation.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
-    const { text, explanations, options } = this.generatedResult;
+    const { text, steps } = this.generatedResult;
     const inputPrompt = this.elements.promptInput.value.trim().toLowerCase();
     const promptEndIndex = this.inferPromptEndIndex(text, inputPrompt);
 
@@ -997,7 +1083,19 @@ class PlainTextAI {
     const generatedText = text.slice(promptEndIndex);
 
     this.displayExplanationText(promptText, generatedText);
-    this.animateExplanation(explanations, options);
+    this.animateExplanation(steps || []);
+  }
+
+  formatStepExplanation(step) {
+    const pct = (step.probability * 100).toFixed(2);
+    if (step.fallback) {
+      return `Selected "${step.token}" (${pct}%). No matching n-gram, so this was drawn from the whole vocabulary.`;
+    }
+    const ngramLabel = `${step.orderUsed}-gram`;
+    if (step.context) {
+      return `Selected "${step.token}" (${pct}%) using a ${ngramLabel} on "${step.context}".`;
+    }
+    return `Selected "${step.token}" (${pct}%) using a ${ngramLabel}.`;
   }
 
   // Infer the end index of the prompt in the generated text
@@ -1052,20 +1150,15 @@ class PlainTextAI {
   }
 
   // Animate the explanation of the generated text
-  animateExplanation(explanations, options) {
+  animateExplanation(steps) {
     const token = this._explainToken;
     let currentIndex = 0;
 
     const animateNextWord = () => {
       if (token !== this._explainToken) return;
-      if (currentIndex >= explanations.length) return;
+      if (currentIndex >= steps.length) return;
 
-      const explanation = explanations[currentIndex];
-      const wordOptions = options[currentIndex] || [];
-
-      const match = explanation.match(/Selected "(.*?)"/);
-      const selectedWord = match ? match[1] : null;
-
+      const step = steps[currentIndex];
       const wordSpan = this.elements.animatedExplanation.querySelector(`.generated-word[data-index="${currentIndex}"]`);
 
       if (wordSpan) {
@@ -1073,7 +1166,11 @@ class PlainTextAI {
         wordSpan.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
 
-      this.displayExplanationAndOptions(explanation, wordOptions, selectedWord);
+      this.displayExplanationAndOptions(
+        this.formatStepExplanation(step),
+        step.alternatives || [],
+        step.token
+      );
 
       setTimeout(() => {
         if (wordSpan) {
