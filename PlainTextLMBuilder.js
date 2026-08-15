@@ -4,15 +4,19 @@ const CONFIG = {
   MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
   MIN_FILE_LENGTH: 100,
   ERROR_DISPLAY_TIME: 5000,
-  TYPEWRITER_SPEED: 80,
-  DEFAULT_MAX_LENGTH: 100,
+  TYPEWRITER_SPEED: 110,
+  DEFAULT_MAX_LENGTH: 40,
+  MIN_GENERATED_TOKENS: 8,
+  SENTENCE_END_GRACE: 24,
   DEFAULT_TEMPERATURE: 1.0,
   DEFAULT_NGRAM_SIZE: 3,
   DEFAULT_ALPHA: 0.1,
-  EXPLANATION_DELAY: 1100,
+  EXPLANATION_DELAY: 2000,
   ANIMATION_DURATION: 300,
   STORAGE_KEY: 'plainTextAI_model',
 };
+
+const SENTENCE_END_TOKENS = new Set([".", "!", "?"]);
 
 // Main language model builder class
 class PlainTextLMBuilder {
@@ -93,7 +97,7 @@ class PlainTextLMBuilder {
   }
 
   // Generate text based on the trained model
-  generate(prompt, maxLength = 50, temperature = 1.0) {
+  generate(prompt, maxLength = CONFIG.DEFAULT_MAX_LENGTH, temperature = 1.0) {
     if (!this.model.size) {
       throw new Error("The model has not been trained yet. Pick a text first.");
     }
@@ -108,8 +112,9 @@ class PlainTextLMBuilder {
     const tokens = this.tokenizer.tokenize(prompt);
     const generated = [];
     const steps = [];
+    const hardMax = maxLength + CONFIG.SENTENCE_END_GRACE;
 
-    while (generated.length < maxLength) {
+    while (generated.length < hardMax) {
       const context = [...tokens, ...generated]
         .slice(-this.maxNgramLength)
         .join(" ");
@@ -128,6 +133,11 @@ class PlainTextLMBuilder {
         context: next.context,
         fallback: next.fallback,
       });
+
+      const atSentenceEnd = SENTENCE_END_TOKENS.has(selectedToken);
+      if (atSentenceEnd && generated.length >= CONFIG.MIN_GENERATED_TOKENS) {
+        break;
+      }
     }
 
     const generatedText = this.tokenizer.detokenize([...tokens, ...generated]);
@@ -151,29 +161,42 @@ class PlainTextLMBuilder {
   }
 
   // Get the next possible tokens based on the given context
-  getNextTokens(gram, temperature = 1.0, topK = 10) {
+  getNextTokens(gram, temperature = 1.0, topK = 12) {
     const gramTokens = gram.split(" ");
-    let possibilities;
+    const scores = new Map();
     let orderUsed = 0;
     let matchedContext = "";
 
-    for (
-      let i = Math.min(gramTokens.length, this.maxNgramLength);
-      i > 0;
-      i--
-    ) {
+    const maxOrder = Math.min(gramTokens.length, this.maxNgramLength);
+    for (let i = 1; i <= maxOrder; i++) {
       const subGram = gramTokens.slice(-i).join(" ");
-      possibilities = this.model.get(subGram);
-      if (possibilities && possibilities.size > 0) {
-        orderUsed = i;
-        matchedContext = subGram;
-        break;
+      const possibilities = this.model.get(subGram);
+      if (!possibilities || possibilities.size === 0) {
+        continue;
+      }
+
+      orderUsed = i;
+      matchedContext = subGram;
+
+      let total = 0;
+      for (const count of possibilities.values()) {
+        total += count;
+      }
+      if (total <= 0) {
+        continue;
+      }
+
+      // Longer n-grams weigh more, but shorter ones still vote, so a
+      // unique 3-gram does not show up as 100% with no alternatives.
+      const weight = i * i;
+      for (const [token, count] of possibilities.entries()) {
+        scores.set(token, (scores.get(token) || 0) + weight * (count / total));
       }
     }
 
     const vocabArray = this.vocabularyArray;
 
-    if (!possibilities || possibilities.size === 0) {
+    if (scores.size === 0) {
       const sampled = [];
       const used = new Set();
       while (sampled.length < Math.min(topK, vocabArray.length)) {
@@ -191,31 +214,13 @@ class PlainTextLMBuilder {
       };
     }
 
-    let total = 0;
-    for (const count of possibilities.values()) {
-      total += count;
+    const adjusted = [];
+    for (const [token, score] of scores.entries()) {
+      adjusted.push([token, Math.pow(score, 1 / temperature)]);
     }
 
-    const adjustedProbabilities = new Map();
-    const vocabSize = this.vocabulary.size;
-    const alpha = this.config.alpha;
-    const denominator = total + alpha * vocabSize;
-
-    for (const [token, count] of possibilities.entries()) {
-      const prob = (count + alpha) / denominator;
-      adjustedProbabilities.set(token, Math.pow(prob, 1 / temperature));
-    }
-
-    let totalAdjustedProb = 0;
-    for (const prob of adjustedProbabilities.values()) {
-      totalAdjustedProb += prob;
-    }
-
-    const normalizedProbs = Array.from(adjustedProbabilities.entries()).map(
-      ([token, prob]) => [token, totalAdjustedProb > 0 ? prob / totalAdjustedProb : 0]
-    );
-
-    const top = normalizedProbs.sort((a, b) => b[1] - a[1]).slice(0, topK);
+    const ranked = this.renormalize(adjusted).sort((a, b) => b[1] - a[1]);
+    const top = ranked.slice(0, topK);
 
     return {
       tokens: this.renormalize(top),
@@ -1646,7 +1651,7 @@ class PlainTextAI {
     this._cy.layout({
       name: "cose",
       animate: !reduceMotion,
-      animationDuration: 420,
+      animationDuration: 700,
       randomize: false,
       padding: 28,
       fit: true,
