@@ -1,15 +1,15 @@
 // Configuration constants
 const CONFIG = {
-  MIN_LOADING_TIME: 3000, // Minimum 3 seconds for loading
+  MIN_LOADING_TIME: 600,
   MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
   MIN_FILE_LENGTH: 100,
   ERROR_DISPLAY_TIME: 5000,
-  TYPEWRITER_SPEED: 100,
+  TYPEWRITER_SPEED: 80,
   DEFAULT_MAX_LENGTH: 100,
   DEFAULT_TEMPERATURE: 1.0,
   DEFAULT_NGRAM_SIZE: 3,
   DEFAULT_ALPHA: 0.1,
-  EXPLANATION_DELAY: 2000,
+  EXPLANATION_DELAY: 1100,
   ANIMATION_DURATION: 300,
   STORAGE_KEY: 'plainTextAI_model',
 };
@@ -95,11 +95,11 @@ class PlainTextLMBuilder {
   // Generate text based on the trained model
   generate(prompt, maxLength = 50, temperature = 1.0) {
     if (!this.model.size) {
-      throw new Error("Model has not been trained yet. Please train a model first.");
+      throw new Error("The model has not been trained yet. Pick a text first.");
     }
     
     if (!prompt || prompt.trim().length === 0) {
-      throw new Error("Please provide a prompt to generate text.");
+      throw new Error("Type a prompt first.");
     }
 
     // Clamp temperature to valid range
@@ -317,17 +317,20 @@ class PlainTextAI {
     this.llm = new PlainTextLMBuilder();
     this.generatedResult = null;
     this.trainingStartTime = null;
+    this.currentStep = 0;
+    this.furthestStep = 0;
+    this._typeToken = 0;
+    this._explainToken = 0;
     this.initializeElements();
     this.addEventListeners();
     this.checkForSavedModel();
-    this.showStep(1);
+    this.showStep(0);
   }
 
-  // Initialize DOM elements
   initializeElements() {
     this.elements = {
+      app: document.getElementById("app"),
       fileInput: document.getElementById("fileInput"),
-      uploadBtn: document.getElementById("uploadBtn"),
       uploadForm: document.getElementById("uploadForm"),
       progressBarContainer: document.getElementById("progressBarContainer"),
       progressBar: document.getElementById("progressBar"),
@@ -342,30 +345,40 @@ class PlainTextAI {
       explainReasoningBtn: document.getElementById("explainReasoningBtn"),
       regenerateBtn: document.getElementById("regenerateBtn"),
       newPromptBtn: document.getElementById("newPromptBtn"),
+      retrainBtn: document.getElementById("retrainBtn"),
       animatedExplanation: document.getElementById("animatedExplanation"),
       generatedText: document.getElementById("generatedText"),
-      steps: document.querySelectorAll(".step"),
+      trainPanel: document.getElementById("step1"),
+      writePanel: document.getElementById("step2"),
+      explorePanel: document.getElementById("step3"),
+      introPanel: document.getElementById("intro"),
+      startBtn: document.getElementById("startBtn"),
       loadingContainer: document.getElementById("loadingContainer"),
       fileUploadArea: document.querySelector(".file-upload"),
       savedModelBanner: document.getElementById("savedModelBanner"),
       loadSavedModelBtn: document.getElementById("loadSavedModelBtn"),
       discardModelBtn: document.getElementById("discardModelBtn"),
       saveModelBtn: document.getElementById("saveModelBtn"),
+      studioModelSummary: document.getElementById("studioModelSummary"),
+      toastRegion: document.getElementById("toast-region"),
+      mobileMenu: document.getElementById("mobileMenu"),
+      mobileMenuBtn: document.getElementById("mobileMenuBtn"),
+      mobileMenuClose: document.getElementById("mobileMenuClose"),
+      trainIntro: document.getElementById("trainIntro"),
     };
   }
 
-  // Add event listeners to DOM elements
   addEventListeners() {
     this.elements.fileInput.addEventListener("change", (e) =>
       this.handleFileUpload(e.target.files[0])
-    );
-    this.elements.uploadBtn.addEventListener("click", () =>
-      this.elements.fileInput.click()
     );
     document.querySelectorAll("[data-sample]").forEach((btn) => {
       btn.addEventListener("click", () => this.trainFromSample(btn.dataset.sample));
     });
     this.elements.continueBtn.addEventListener("click", () => this.showStep(2));
+    if (this.elements.startBtn) {
+      this.elements.startBtn.addEventListener("click", () => this.showStep(1));
+    }
     this.elements.generateBtn.addEventListener("click", () =>
       this.generateText()
     );
@@ -373,7 +386,7 @@ class PlainTextAI {
       this.generateText()
     );
     this.elements.newPromptBtn.addEventListener("click", () =>
-      this.showStep(2)
+      this.focusPrompt()
     );
     this.elements.explainReasoningBtn.addEventListener("click", () =>
       this.explainReasoning()
@@ -381,8 +394,39 @@ class PlainTextAI {
     this.elements.temperatureInput.addEventListener("input", () =>
       this.updateTemperatureValue()
     );
+    if (this.elements.retrainBtn) {
+      this.elements.retrainBtn.addEventListener("click", () => this.retrain());
+    }
+    const chooseDifferentBtn = document.getElementById("chooseDifferentBtn");
+    if (chooseDifferentBtn) {
+      chooseDifferentBtn.addEventListener("click", () => this.retrain());
+    }
 
-    // Model persistence buttons
+    document.querySelectorAll("[data-go-step]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        if (btn.tagName === "A") {
+          e.preventDefault();
+        }
+        this.closeMobileMenu();
+        this.showStep(Number(btn.dataset.goStep));
+      });
+    });
+
+    if (this.elements.mobileMenuBtn && this.elements.mobileMenu) {
+      this.elements.mobileMenuBtn.addEventListener("click", () =>
+        this.openMobileMenu()
+      );
+      this.elements.mobileMenuClose.addEventListener("click", () =>
+        this.closeMobileMenu()
+      );
+      this.elements.mobileMenu.addEventListener("close", () => {
+        if (this.elements.app) {
+          this.elements.app.inert = false;
+        }
+        this.elements.mobileMenuBtn.setAttribute("aria-expanded", "false");
+      });
+    }
+
     if (this.elements.loadSavedModelBtn) {
       this.elements.loadSavedModelBtn.addEventListener("click", () =>
         this.loadSavedModel()
@@ -399,7 +443,6 @@ class PlainTextAI {
       );
     }
 
-    // Keyboard support for prompt
     this.elements.promptInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -407,7 +450,6 @@ class PlainTextAI {
       }
     });
 
-    // Drag and drop functionality
     ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
       this.elements.fileUploadArea.addEventListener(
         eventName,
@@ -439,12 +481,46 @@ class PlainTextAI {
     );
   }
 
+  openMobileMenu() {
+    if (!this.elements.mobileMenu) {
+      return;
+    }
+    if (this.elements.app) {
+      this.elements.app.inert = true;
+    }
+    this.elements.mobileMenuBtn.setAttribute("aria-expanded", "true");
+    this.elements.mobileMenu.showModal();
+  }
+
+  closeMobileMenu() {
+    if (this.elements.mobileMenu?.open) {
+      this.elements.mobileMenu.close();
+    }
+  }
+
+  focusPrompt() {
+    this.elements.promptInput.focus();
+    this.elements.promptInput.select();
+    this.elements.promptInput.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  retrain() {
+    this.elements.modelStatus.classList.add("is-hidden");
+    this.elements.uploadForm.classList.remove("is-hidden");
+    this.elements.progressBarContainer.classList.add("is-hidden");
+    this.elements.loadingContainer.classList.add("is-hidden");
+    if (this.elements.trainIntro) {
+      this.elements.trainIntro.classList.remove("is-hidden");
+    }
+    this.showStep(1);
+  }
+
   // Check for saved model in localStorage
   checkForSavedModel() {
     try {
       const savedModel = localStorage.getItem(CONFIG.STORAGE_KEY);
       if (savedModel && this.elements.savedModelBanner) {
-        this.elements.savedModelBanner.classList.remove("hidden");
+        this.elements.savedModelBanner.classList.remove("is-hidden");
         this.elements.savedModelBanner.classList.add("fade-in");
       }
     } catch (error) {
@@ -457,26 +533,30 @@ class PlainTextAI {
     try {
       const savedModel = localStorage.getItem(CONFIG.STORAGE_KEY);
       if (!savedModel) {
-        this.showError("No saved model found.");
+        this.showError("No saved model in this browser.");
         return;
       }
 
       const modelData = JSON.parse(savedModel);
       this.llm.deserialize(modelData);
-      
-      // Hide banner and show success
+
       if (this.elements.savedModelBanner) {
-        this.elements.savedModelBanner.classList.add("hidden");
+        this.elements.savedModelBanner.classList.add("is-hidden");
       }
-      this.elements.uploadForm.classList.add("hidden");
+      this.elements.uploadForm.classList.add("is-hidden");
+      if (this.elements.trainIntro) {
+        this.elements.trainIntro.classList.add("is-hidden");
+      }
       this.elements.modelStats.innerHTML = this.renderStats(this.llm.getStats());
-      this.elements.modelStatus.classList.remove("hidden");
+      this.elements.modelStatus.classList.remove("is-hidden");
       this.elements.modelStatus.classList.add("fade-in");
-      
-      this.showSuccess("Model loaded successfully!");
+      this.furthestStep = Math.max(this.furthestStep, 2);
+      this.updateStudioSummary();
+      this.showStep(2);
+      this.showSuccess("Loaded the saved model.");
     } catch (error) {
       console.error("Error loading saved model:", error);
-      this.showError(`Failed to load saved model: ${error.message}`);
+      this.showError(`Could not load the saved model: ${error.message}`);
     }
   }
 
@@ -484,7 +564,7 @@ class PlainTextAI {
   saveModel() {
     try {
       if (!this.llm.model.size) {
-        this.showError("No model to save. Please train a model first.");
+        this.showError("There is nothing to save yet. Train a model first.");
         return;
       }
 
@@ -493,18 +573,18 @@ class PlainTextAI {
       
       // Check storage size (localStorage typically has 5-10MB limit)
       if (serialized.length > 4 * 1024 * 1024) {
-        this.showError("Model is too large to save. Try training with a smaller text file.");
+        this.showError("This model is too big to save here. Try a shorter text file.");
         return;
       }
 
       localStorage.setItem(CONFIG.STORAGE_KEY, serialized);
-      this.showSuccess("Model saved successfully!");
+      this.showSuccess("Saved in this browser.");
     } catch (error) {
       console.error("Error saving model:", error);
       if (error.name === 'QuotaExceededError') {
-        this.showError("Storage quota exceeded. Try clearing browser data or using a smaller model.");
+        this.showError("This browser is out of storage space. Clear some site data, or train on a shorter file.");
       } else {
-        this.showError(`Failed to save model: ${error.message}`);
+        this.showError(`Could not save the model: ${error.message}`);
       }
     }
   }
@@ -516,7 +596,7 @@ class PlainTextAI {
       if (this.elements.savedModelBanner) {
         this.elements.savedModelBanner.classList.add("fade-out");
         setTimeout(() => {
-          this.elements.savedModelBanner.classList.add("hidden");
+          this.elements.savedModelBanner.classList.add("is-hidden");
           this.elements.savedModelBanner.classList.remove("fade-out");
         }, 500);
       }
@@ -525,26 +605,64 @@ class PlainTextAI {
     }
   }
 
-  // Show a specific step in the UI
   showStep(stepNumber) {
-    this.elements.steps.forEach((step, index) => {
-      const progressStep = document.querySelector(`.progress-step:nth-child(${index + 1})`);
-      if (index + 1 === stepNumber) {
-        step.classList.remove("hidden");
-        step.classList.add("fade-in");
-        if (progressStep) {
-          progressStep.classList.add("active");
-          progressStep.setAttribute("aria-current", "step");
-        }
+    if (stepNumber > 1 && !this.llm.model.size) {
+      if (this.currentStep !== 0 && this.currentStep !== 1) {
+        this.showError("Pick a training text first.");
+      }
+      stepNumber = 1;
+    }
+    if (stepNumber === 3 && !this.generatedResult) {
+      stepNumber = 2;
+    }
+
+    this.currentStep = stepNumber;
+    this.furthestStep = Math.max(this.furthestStep, stepNumber);
+
+    const reveal = (el) => {
+      if (!el) return;
+      el.classList.remove("is-hidden");
+      el.classList.add("fade-in");
+    };
+    const conceal = (el) => {
+      if (!el) return;
+      el.classList.add("is-hidden");
+      el.classList.remove("fade-in");
+    };
+
+    conceal(this.elements.introPanel);
+    conceal(this.elements.trainPanel);
+    conceal(this.elements.writePanel);
+    conceal(this.elements.explorePanel);
+
+    if (stepNumber === 0) {
+      reveal(this.elements.introPanel);
+    } else if (stepNumber === 1) {
+      reveal(this.elements.trainPanel);
+    } else {
+      reveal(this.elements.writePanel);
+      if (stepNumber === 3 || this.generatedResult) {
+        reveal(this.elements.explorePanel);
+      }
+    }
+
+    document.querySelectorAll(".progress-step").forEach((el, index) => {
+      const n = index + 1;
+      el.classList.toggle("active", n === stepNumber);
+      el.classList.toggle("is-complete", n < stepNumber);
+      if (n === stepNumber) {
+        el.setAttribute("aria-current", "step");
       } else {
-        step.classList.add("hidden");
-        step.classList.remove("fade-in");
-        if (progressStep) {
-          progressStep.classList.remove("active");
-          progressStep.removeAttribute("aria-current");
-        }
+        el.removeAttribute("aria-current");
       }
     });
+
+    if (stepNumber === 2) {
+      this.elements.promptInput.focus();
+    }
+    if (stepNumber === 3 && this.elements.explorePanel) {
+      this.elements.explorePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   // Handle file upload with validation
@@ -555,20 +673,20 @@ class PlainTextAI {
 
     // Validate file type
     if (!file.name.endsWith('.txt') && file.type !== 'text/plain') {
-      this.showError('Please upload a .txt file');
+      this.showError('Use a .txt file.');
       return;
     }
 
     // Warn about large files
     if (file.size > CONFIG.MAX_FILE_SIZE) {
-      this.showError('File is too large. Please use a file smaller than 5MB.');
+      this.showError('That file is over 5MB. Try a shorter one.');
       return;
     }
 
     const reader = new FileReader();
     
     reader.onerror = () => {
-      this.showError('Failed to read file. Please try again.');
+      this.showError('Could not read that file. Try again.');
     };
 
     reader.onload = async (e) => {
@@ -576,13 +694,13 @@ class PlainTextAI {
       
       // Validate content
       if (!text || text.trim().length === 0) {
-        this.showError('The file appears to be empty.');
+        this.showError('That file looks empty.');
         return;
       }
 
       // Warn about very short files
       if (text.trim().length < CONFIG.MIN_FILE_LENGTH) {
-        this.showError('The file is very short. For better results, use a file with more text.');
+        this.showError('That file is very short. The model does better with more text.');
         return;
       }
 
@@ -591,8 +709,8 @@ class PlainTextAI {
         await this.trainModel(text);
         this.hideLoadingUI();
       } catch (error) {
-        this.hideLoadingUI();
-        this.showError(error.message || 'An error occurred during training. Please try again.');
+        this.hideLoadingUI(false);
+        this.showError(error.message || 'Training failed. Try again.');
         console.error('Training error:', error);
       }
     };
@@ -605,7 +723,7 @@ class PlainTextAI {
     const sample =
       typeof SAMPLE_CORPORA !== "undefined" ? SAMPLE_CORPORA[sampleId] : null;
     if (!sample || !sample.text) {
-      this.showError("Sample text is not available.");
+      this.showError("That sample text is missing.");
       return;
     }
 
@@ -614,8 +732,8 @@ class PlainTextAI {
       await this.trainModel(sample.text);
       this.hideLoadingUI();
     } catch (error) {
-      this.hideLoadingUI();
-      this.showError(error.message || "An error occurred during training. Please try again.");
+      this.hideLoadingUI(false);
+      this.showError(error.message || "Training failed. Try again.");
       console.error("Training error:", error);
     }
   }
@@ -643,12 +761,10 @@ class PlainTextAI {
     notification.setAttribute('role', 'alert');
     notification.setAttribute('aria-live', 'polite');
     notification.textContent = message;
-    
-    // Insert at the top of main
-    const main = document.querySelector('main');
-    main.insertBefore(notification, main.firstChild);
-    
-    // Auto-hide after timeout
+
+    const region = this.elements.toastRegion || document.querySelector("main");
+    region.appendChild(notification);
+
     setTimeout(() => {
       notification.classList.remove('fade-in');
       notification.classList.add('fade-out');
@@ -656,7 +772,7 @@ class PlainTextAI {
         if (notification.parentNode) {
           notification.remove();
         }
-      }, 500);
+      }, 400);
     }, CONFIG.ERROR_DISPLAY_TIME);
   }
 
@@ -668,72 +784,96 @@ class PlainTextAI {
     this.elements.uploadForm.classList.add("fade-out");
     setTimeout(() => {
       if (!this._loadingActive) return;
-      this.elements.uploadForm.classList.add("hidden");
-      this.elements.progressBarContainer.classList.remove("hidden");
-      this.elements.loadingContainer.classList.remove("hidden");
+      this.elements.uploadForm.classList.add("is-hidden");
+      this.elements.progressBarContainer.classList.remove("is-hidden");
+      this.elements.loadingContainer.classList.remove("is-hidden");
       this.elements.progressBarContainer.classList.add("fade-in");
       this.elements.loadingContainer.classList.add("fade-in");
-      this.updateProgressBar(0, "Training model...");
+      this.updateProgressBar(0, "Reading the text...");
     }, 500);
   }
 
   // Hide loading UI after model training
-  hideLoadingUI() {
+  hideLoadingUI(success = true) {
     this._loadingActive = false;
     this.elements.progressBarContainer.classList.add("fade-out");
     this.elements.loadingContainer.classList.add("fade-out");
     setTimeout(() => {
-      this.elements.progressBarContainer.classList.add("hidden");
-      this.elements.loadingContainer.classList.add("hidden");
+      this.elements.progressBarContainer.classList.add("is-hidden");
+      this.elements.loadingContainer.classList.add("is-hidden");
       this.elements.progressBarContainer.classList.remove("fade-out", "fade-in");
       this.elements.loadingContainer.classList.remove("fade-out", "fade-in");
+      this.elements.uploadForm.classList.remove("fade-out");
+      if (!success) {
+        this.elements.uploadForm.classList.remove("is-hidden");
+        if (this.elements.trainIntro) {
+          this.elements.trainIntro.classList.remove("is-hidden");
+        }
+        return;
+      }
+      if (this.elements.trainIntro) {
+        this.elements.trainIntro.classList.add("is-hidden");
+      }
       this.elements.modelStats.innerHTML = this.renderStats(this.llm.getStats());
-      this.elements.modelStatus.classList.remove("hidden");
+      this.elements.modelStatus.classList.remove("is-hidden");
       this.elements.modelStatus.classList.add("fade-in");
+      this.furthestStep = Math.max(this.furthestStep, 2);
+      this.updateStudioSummary();
     }, 500);
   }
 
-  // Update progress bar with actual progress
   updateProgressBar(percent, text = "") {
-    this.elements.progressBar.style.width = `${percent}%`;
+    this.elements.progressBar.style.setProperty("--progress", `${percent}%`);
     this.elements.progressBar.setAttribute('aria-valuenow', Math.round(percent));
     if (this.elements.progressText && text) {
       this.elements.progressText.textContent = text;
     }
   }
 
+  updateStudioSummary() {
+    if (!this.elements.studioModelSummary || !this.llm.model.size) {
+      if (this.elements.studioModelSummary) {
+        this.elements.studioModelSummary.textContent = "";
+      }
+      return;
+    }
+    const stats = this.llm.getStats();
+    this.elements.studioModelSummary.textContent =
+      `${stats.totalTokens.toLocaleString()} tokens · ${stats.vocabularySize.toLocaleString()} words it knows`;
+  }
+
   // Render model statistics as HTML (UI layer responsibility)
   renderStats(stats) {
     const statItems = [
       {
-        name: 'N-gram Size',
+        name: 'N-gram size',
         value: stats.ngramSize,
-        explanation: 'N-gram size determines the context length used for predictions. Larger sizes capture more context but require more data.'
+        explanation: 'How many previous words it looks at to guess the next one.'
       },
       {
-        name: 'Unique N-grams',
+        name: 'Unique n-grams',
         value: stats.uniqueNgrams.toLocaleString(),
-        explanation: 'The number of distinct n-grams in the model. More unique n-grams can lead to more diverse text generation.'
+        explanation: 'How many different word chunks it stored.'
       },
       {
-        name: 'Vocabulary Size',
+        name: 'Vocabulary',
         value: stats.vocabularySize.toLocaleString(),
-        explanation: 'The number of unique tokens (words) in the model. A larger vocabulary allows for more expressive text generation.'
+        explanation: 'How many distinct words it can use.'
       },
       {
-        name: 'Total Tokens',
+        name: 'Tokens trained',
         value: stats.totalTokens.toLocaleString(),
-        explanation: 'The total number of tokens (words) processed during training. More tokens generally lead to better model performance.'
+        explanation: 'How many words it read.'
       }
     ];
 
-    return statItems.map(item => `
+    return `<dl class="stats-grid">${statItems.map(item => `
       <div class="stat-item">
-        <span class="stat-name">${this.escapeHtml(item.name)}:</span>
-        <span class="stat-value">${this.escapeHtml(String(item.value))}</span>
+        <dt class="stat-name">${this.escapeHtml(item.name)}</dt>
+        <dd class="stat-value">${this.escapeHtml(String(item.value))}</dd>
+        <p class="stat-explanation">${this.escapeHtml(item.explanation)}</p>
       </div>
-      <div class="stat-explanation">${this.escapeHtml(item.explanation)}</div>
-    `).join('');
+    `).join('')}</dl>`;
   }
 
   // Escape HTML to prevent XSS
@@ -750,7 +890,7 @@ class PlainTextAI {
     // Train the model with progress callback
     await this.llm.train(text, (progress) => {
       // Training phase is 0-50% of progress bar
-      this.updateProgressBar(progress * 0.5, `Training model... ${Math.round(progress)}%`);
+      this.updateProgressBar(progress * 0.5, `Reading the text... ${Math.round(progress)}%`);
     });
 
     const trainingTime = Date.now() - startTime;
@@ -758,7 +898,7 @@ class PlainTextAI {
 
     // If training was fast, show a "finalizing" phase
     if (remainingTime > 0) {
-      this.updateProgressBar(50, "Finalizing model...");
+      this.updateProgressBar(50, "Finishing up...");
       
       const finalizingSteps = 50;
       const stepDuration = remainingTime / finalizingSteps;
@@ -766,7 +906,7 @@ class PlainTextAI {
       for (let i = 0; i <= finalizingSteps; i++) {
         await new Promise(resolve => setTimeout(resolve, stepDuration));
         const progress = 50 + (i / finalizingSteps) * 50;
-        this.updateProgressBar(progress, `Finalizing model... ${Math.round(progress)}%`);
+        this.updateProgressBar(progress, `Finishing up... ${Math.round(progress)}%`);
       }
     } else {
       this.updateProgressBar(100, "Complete!");
@@ -779,63 +919,75 @@ class PlainTextAI {
     const temperature = parseFloat(this.elements.temperatureInput.value) || CONFIG.DEFAULT_TEMPERATURE;
     
     if (!prompt || prompt.trim().length === 0) {
-      this.showError("Please enter a prompt to generate text.");
+      this.showError("Type a prompt first.");
       return;
     }
 
     try {
       this.generatedResult = this.llm.generate(prompt, CONFIG.DEFAULT_MAX_LENGTH, temperature);
+      this.elements.animatedExplanation.classList.add("is-hidden");
+      this.elements.animatedExplanation.innerHTML = "";
       this.showStep(3);
       this.typewriterEffect(this.generatedResult.text);
     } catch (error) {
-      this.showError(error.message || "Failed to generate text. Please try again.");
+      this.showError(error.message || "Could not generate text. Try again.");
       console.error("Generation error:", error);
     }
   }
 
-  // Display generated text with a typewriter effect
+  showResultActions() {
+    this.elements.explainReasoningBtn.classList.remove("is-hidden");
+    this.elements.regenerateBtn.classList.remove("is-hidden");
+    this.elements.newPromptBtn.classList.remove("is-hidden");
+  }
+
   typewriterEffect(text) {
+    this._typeToken += 1;
+    const token = this._typeToken;
     const words = text.split(" ");
-    let i = 0;
 
     this.elements.generatedText.textContent = "";
-    this.elements.generatedText.style.width = "100%";
-    this.elements.generatedText.style.height = "auto";
+    this.elements.generatedText.classList.remove("is-typing");
+    this.elements.explainReasoningBtn.classList.add("is-hidden");
+    this.elements.regenerateBtn.classList.add("is-hidden");
+    this.elements.newPromptBtn.classList.add("is-hidden");
 
-    // Hide action buttons during typing
-    this.elements.explainReasoningBtn.classList.add("hidden");
-    this.elements.regenerateBtn.classList.add("hidden");
-    this.elements.newPromptBtn.classList.add("hidden");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      this.elements.generatedText.textContent = text;
+      this.showResultActions();
+      return;
+    }
 
+    this.elements.generatedText.classList.add("is-typing");
+    let i = 0;
     const typeWord = () => {
+      if (token !== this._typeToken) {
+        return;
+      }
       if (i < words.length) {
         this.elements.generatedText.textContent += words[i] + " ";
-        i++;
-        this.elements.generatedText.scrollTop =
-          this.elements.generatedText.scrollHeight;
+        i += 1;
         setTimeout(typeWord, CONFIG.TYPEWRITER_SPEED);
       } else {
-        this.elements.generatedText.style.height = "auto";
-        this.elements.explainReasoningBtn.classList.remove("hidden");
-        this.elements.regenerateBtn.classList.remove("hidden");
-        this.elements.newPromptBtn.classList.remove("hidden");
+        this.elements.generatedText.classList.remove("is-typing");
+        this.showResultActions();
       }
     };
-
-    // Set initial height to prevent layout shifts
-    this.elements.generatedText.style.height = "250px";
     typeWord();
   }
 
   // Explain the reasoning behind the generated text
   explainReasoning() {
     if (!this.generatedResult) {
-      this.showError("No generated text to explain.");
+      this.showError("Generate some text first.");
       return;
     }
 
+    this._explainToken += 1;
     this.elements.animatedExplanation.innerHTML = "";
-    this.elements.animatedExplanation.classList.remove("hidden");
+    this.elements.animatedExplanation.classList.remove("is-hidden");
+    this.elements.animatedExplanation.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     const { text, explanations, options } = this.generatedResult;
     const inputPrompt = this.elements.promptInput.value.trim().toLowerCase();
@@ -901,9 +1053,11 @@ class PlainTextAI {
 
   // Animate the explanation of the generated text
   animateExplanation(explanations, options) {
+    const token = this._explainToken;
     let currentIndex = 0;
 
     const animateNextWord = () => {
+      if (token !== this._explainToken) return;
       if (currentIndex >= explanations.length) return;
 
       const explanation = explanations[currentIndex];
@@ -916,6 +1070,7 @@ class PlainTextAI {
 
       if (wordSpan) {
         this.highlightWord(wordSpan);
+        wordSpan.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
 
       this.displayExplanationAndOptions(explanation, wordOptions, selectedWord);
@@ -952,13 +1107,29 @@ class PlainTextAI {
     explanationDiv.textContent = explanation || "No explanation available.";
     optionsDiv.innerHTML = "";
     wordOptions.forEach(([token, prob]) => {
-      const optionSpan = document.createElement("span");
-      optionSpan.textContent = `${token} (${(prob * 100).toFixed(2)}%)`;
-      optionSpan.classList.add("option");
+      const row = document.createElement("div");
+      row.className = "option-row";
       if (token === selectedWord) {
-        optionSpan.classList.add("selected");
+        row.classList.add("is-selected");
       }
-      optionsDiv.appendChild(optionSpan);
+
+      const label = document.createElement("span");
+      label.className = "option-label";
+      label.textContent = token;
+
+      const track = document.createElement("div");
+      track.className = "option-track";
+      const bar = document.createElement("div");
+      bar.className = "option-bar";
+      bar.style.setProperty("--bar", `${(prob * 100).toFixed(1)}%`);
+      track.appendChild(bar);
+
+      const pct = document.createElement("span");
+      pct.className = "option-pct";
+      pct.textContent = `${(prob * 100).toFixed(1)}%`;
+
+      row.append(label, track, pct);
+      optionsDiv.appendChild(row);
     });
 
     // Trigger CSS animations by removing and re-adding class

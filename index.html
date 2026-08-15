@@ -1,232 +1,314 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="antialiased scheme-light dark:scheme-dark">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="Plain Text AI Builder - Train simple language models using plain text data and generate new text">
-        <title>Plain Text AI Builder</title>
+        <meta name="description" content="Train a small language model on a text file in your browser, then ask it to keep writing.">
+        <title>Plain Text AI</title>
+        <link rel="preconnect" href="https://rsms.me" crossorigin>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+        <style type="text/tailwindcss">
+            @theme {
+                --font-sans: "InterVariable", "Inter", sans-serif;
+                --font-sans--font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+                --font-display: "Instrument Serif", ui-serif, serif;
+                --font-mono: "VT323", ui-monospace, monospace;
+            }
+        </style>
         <link rel="stylesheet" href="styles.css">
     </head>
-    <body>
-        <!-- Skip to main content link for accessibility -->
-        <a href="#main-content" class="skip-link">Skip to main content</a>
+    <body class="min-h-dvh bg-white font-sans text-zinc-950 dark:bg-zinc-950 dark:text-zinc-100">
+        <div id="app" class="isolate flex min-h-dvh flex-col">
+            <a href="#main-content" class="skip-link">Skip to main content</a>
 
-        <header role="banner">
-            <div class="header-content">
-                <div class="logo-container">
-                    <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 2L2 12h10V2z"></path>
-                        <path d="M12 2L22 12h-10V2z"></path>
-                        <path d="M2 12l10 10v-10H2z"></path>
-                        <path d="M12 12l10 10v-10h-10z"></path>
-                    </svg>
-                    <h1 class="app-name">Plain Text AI Builder</h1>
-                </div>
-            </div>
-        </header>
+            <header class="border-b border-zinc-950/10 dark:border-white/10">
+                <div class="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
+                    <a href="./" class="flex min-w-0 items-center gap-2.5" aria-label="Homepage" data-go-step="0">
+                        <img src="https://assets.ui.sh/marks/1.svg?color=orange-700" alt="" width="28" height="28" class="mark-light h-7 w-7 shrink-0">
+                        <img src="https://assets.ui.sh/marks/1.svg?color=orange-400" alt="" width="28" height="28" class="mark-dark h-7 w-7 shrink-0">
+                        <h1 class="truncate text-base/6 font-semibold tracking-tight">Plain Text AI</h1>
+                    </a>
 
-        <main id="main-content" role="main">
-            <!-- Progress Steps Navigation -->
-            <nav class="progress-bar" aria-label="Training wizard steps">
-                <div class="progress-step active" id="step1-progress" aria-current="step">
-                    <span class="sr-only">Step 1:</span> Train Model
-                </div>
-                <div class="progress-step" id="step2-progress">
-                    <span class="sr-only">Step 2:</span> Generate Text
-                </div>
-                <div class="progress-step" id="step3-progress">
-                    <span class="sr-only">Step 3:</span> Explore Results
-                </div>
-            </nav>
-
-            <!-- Step 1: Training -->
-            <section id="step1" class="section step" aria-labelledby="step1-heading">
-                <div class="card">
-                    <h2 id="step1-heading">Step 1: Training a New Model</h2>
-                    
-                    <!-- Saved Model Banner -->
-                    <div id="savedModelBanner" class="saved-model-banner hidden" role="alert">
-                        <p><strong>You have a previously trained model saved.</strong></p>
-                        <p>Would you like to continue with your saved model or train a new one?</p>
-                        <div class="btn-group">
-                            <button id="loadSavedModelBtn" class="btn btn-success" type="button">
-                                Load Saved Model
-                            </button>
-                            <button id="discardModelBtn" class="btn btn-secondary" type="button">
-                                Train New Model
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="uploadForm">
-                        <p>To build a simple language model, provide a text file to learn from. This process is called "training". Your model will learn patterns and structures from the text you provide, and use these to generate new text later.</p>
-                        <p>You can use any .txt file containing text in a language of your choice. Good options could be:</p>
-                        <ul>
-                            <li>Books or book excerpts</li>
-                            <li>Articles or blog posts</li>
-                            <li>Song lyrics or poetry</li>
-                            <li>Your own writing</li>
-                        </ul>
-                        <p>The more text you provide, the more patterns your model will learn.</p>
-                        
-                        <div id="fileUploadArea" class="file-upload" role="button" tabindex="0" aria-describedby="file-upload-instructions">
-                            <input 
-                                type="file" 
-                                id="fileInput" 
-                                accept=".txt,text/plain" 
-                                aria-label="Choose a text file to train the model"
-                            />
-                            <label for="fileInput" id="file-upload-instructions">
-                                Choose a .txt file or drag it here
-                            </label>
-                        </div>
-                        <button id="uploadBtn" class="btn" type="button" aria-describedby="file-upload-instructions">
-                            Upload and Train Model
-                        </button>
-
-                        <div class="sample-corpora" aria-labelledby="sample-heading">
-                            <h3 id="sample-heading">Or train with a public-domain sample</h3>
-                            <p>No file handy? Train immediately with a public-domain literary work obtained from <a href="https://www.gutenberg.org/" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>.</p>
-                            <div class="sample-btn-group">
-                                <button type="button" class="btn btn-secondary" id="sampleRomeoBtn" data-sample="romeo">
-                                    Romeo and Juliet
+                    <div class="flex shrink-0 items-center gap-1 sm:gap-3">
+                    <nav class="flex items-center gap-3 sm:gap-6" aria-label="Training steps">
+                        <ol class="flex items-center gap-1" role="list">
+                            <li class="progress-step active" id="step1-progress" aria-current="step">
+                                <button type="button" class="step-btn" data-go-step="1">
+                                    <span class="step-index">1</span>
+                                    <span class="max-lg:sr-only">Train</span>
                                 </button>
-                                <button type="button" class="btn btn-secondary" id="sampleDraculaBtn" data-sample="dracula">
-                                    Dracula (Chapters I–V)
+                            </li>
+                            <li class="progress-step" id="step2-progress">
+                                <button type="button" class="step-btn" data-go-step="2">
+                                    <span class="step-index">2</span>
+                                    <span class="max-lg:sr-only">Write</span>
                                 </button>
-                            </div>
-                            <div class="sample-attribution">
-                                <p>
-                                    <cite>Romeo and Juliet</cite> by William Shakespeare (complete play). Public domain.
-                                    Source: <a href="https://www.gutenberg.org/ebooks/1513" target="_blank" rel="noopener noreferrer">Project Gutenberg eBook #1513</a>
-                                    (<a href="https://www.gutenberg.org/files/1513/1513-0.txt" target="_blank" rel="noopener noreferrer">1513-0.txt</a>).
-                                </p>
-                                <p>
-                                    <cite>Dracula</cite> by Bram Stoker, Chapters I–V. Public domain in the United States (first published 1897).
-                                    Source: <a href="https://www.gutenberg.org/ebooks/345" target="_blank" rel="noopener noreferrer">Project Gutenberg eBook #345</a>
-                                    (<a href="https://www.gutenberg.org/files/345/345-0.txt" target="_blank" rel="noopener noreferrer">345-0.txt</a>).
-                                </p>
-                                <p>
-                                    These copies omit Project Gutenberg headers and licenses, so they are not redistributed as Project Gutenberg eBooks.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                            </li>
+                            <li class="progress-step" id="step3-progress">
+                                <button type="button" class="step-btn" data-go-step="3">
+                                    <span class="step-index">3</span>
+                                    <span class="max-lg:sr-only">Explore</span>
+                                </button>
+                            </li>
+                        </ol>
+                        <a href="https://github.com/paugm/PlainTextAI" class="max-lg:hidden text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    </nav>
 
-                    <!-- Training Progress -->
-                    <div id="progressBarContainer" class="hidden" role="group" aria-labelledby="progress-label">
-                        <span id="progress-label" class="sr-only">Training progress</span>
-                        <div 
-                            id="progressBar" 
-                            role="progressbar" 
-                            aria-valuemin="0" 
-                            aria-valuemax="100" 
-                            aria-valuenow="0"
-                            aria-label="Model training progress"
-                        ></div>
-                        <div id="progressText" aria-live="polite">Preparing to train...</div>
-                    </div>
-
-                    <div id="loadingContainer" class="hidden loading-container" aria-busy="true">
-                        <p class="loading-text" aria-live="polite">Generating model...</p>
-                        <div class="loading-spinner" role="status" aria-label="Loading">
-                            <span class="sr-only">Training in progress...</span>
-                        </div>
-                    </div>
-
-                    <!-- Model Status (shown after training) -->
-                    <div id="modelStatus" class="hidden" role="status" aria-live="polite">
-                        <h3>Model trained successfully!</h3>
-                        <div id="modelStats" aria-label="Model statistics"></div>
-                        <div class="button-group">
-                            <button id="saveModelBtn" class="btn btn-secondary" type="button">
-                                Save Model for Later
-                            </button>
-                            <button id="continueBtn" class="btn" type="button">
-                                Continue to Generate Text
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Step 2: Generate Text -->
-            <section id="step2" class="section step hidden" aria-labelledby="step2-heading">
-                <div class="card">
-                    <h2 id="step2-heading">Step 2: Generate Text</h2>
-                    <p>Now that your model is trained, you can use it to generate text. Start by writing a prompt - this is the beginning of the text that your model will continue.</p>
-                    
-                    <label for="promptInput" class="sr-only">Enter your prompt</label>
-                    <textarea 
-                        id="promptInput" 
-                        rows="3" 
-                        placeholder="Enter your prompt here..."
-                        aria-describedby="prompt-help temperature-help"
-                    ></textarea>
-                    
-                    <div class="temperature-container">
-                        <label for="temperatureInput" id="temperature-label">
-                            Temperature: <span id="temperatureValue">1.0</span>
-                        </label>
-                        <input 
-                            type="range" 
-                            id="temperatureInput" 
-                            min="0.1" 
-                            max="2" 
-                            step="0.1" 
-                            value="1.0"
-                            aria-describedby="temperature-help"
-                        >
-                    </div>
-                    <p id="temperature-help">The temperature controls how "creative" your model is. Lower values (closer to 0) will make the model's choices more predictable, while higher values (closer to 2) will make the output more diverse and potentially more creative.</p>
-                    <p id="prompt-help" class="sr-only">Enter a starting text that the model will continue. Press Enter to generate or use the Generate Text button.</p>
-                    
-                    <button id="generateBtn" class="btn" type="button">
-                        Generate Text
+                    <button type="button" id="mobileMenuBtn" class="relative inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-zinc-950 lg:hidden dark:text-zinc-100" aria-expanded="false" aria-controls="mobileMenu" aria-label="Open menu">
+                        <svg viewBox="0 0 16 16" fill="currentColor" class="size-4 shrink-0" aria-hidden="true">
+                            <path d="M1.75 3.5A.75.75 0 0 1 2.5 2.75h11a.75.75 0 0 1 0 1.5h-11A.75.75 0 0 1 1.75 3.5ZM1.75 8A.75.75 0 0 1 2.5 7.25h11a.75.75 0 0 1 0 1.5h-11A.75.75 0 0 1 1.75 8ZM1.75 12.5a.75.75 0 0 1 .75-.75h11a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1-.75-.75Z" />
+                        </svg>
+                        <span class="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden" aria-hidden="true"></span>
                     </button>
-                </div>
-            </section>
-
-            <!-- Step 3: Results -->
-            <section id="step3" class="section step hidden" aria-labelledby="step3-heading">
-                <div class="card">
-                    <h2 id="step3-heading">Step 3: Explore Results</h2>
-                    <h3 id="generated-text-heading">Generated Text</h3>
-                    <div 
-                        id="generatedText" 
-                        role="region" 
-                        aria-labelledby="generated-text-heading"
-                        aria-live="polite"
-                    ></div>
-                    <div class="button-group" role="group" aria-label="Result actions">
-                        <button id="explainReasoningBtn" class="btn hidden" type="button">
-                            Explain Reasoning
-                        </button>
-                        <button id="regenerateBtn" class="btn hidden" type="button">
-                            Regenerate
-                        </button>
-                        <button id="newPromptBtn" class="btn hidden" type="button">
-                            New Prompt
-                        </button>
                     </div>
-                    <div 
-                        id="animatedExplanation" 
-                        class="hidden" 
-                        role="region" 
-                        aria-label="Word-by-word explanation of generated text"
-                        aria-live="polite"
-                    ></div>
                 </div>
-            </section>
-        </main>
+            </header>
 
-        <footer role="contentinfo">
-            <div class="footer-content">
-                Released under the <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer">MIT license</a>. 
-                Hobby project by <a href="https://github.com/paugm" target="_blank" rel="noopener noreferrer">Pau Garcia-Mila</a>. 
-                View the <a href="https://github.com/paugm/PlainTextAI" target="_blank" rel="noopener noreferrer">project repository</a>.
+            <div id="toast-region" class="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4" aria-live="polite"></div>
+
+            <main id="main-content" class="flex grow flex-col">
+                <section id="intro" class="step py-10 sm:py-16" aria-labelledby="intro-heading">
+                    <div class="mx-auto max-w-5xl px-4 sm:px-6">
+                        <p class="font-mono text-base/6 text-orange-700 sm:text-sm/6 dark:text-orange-400">A hobby experiment</p>
+                        <h2 id="intro-heading" class="mt-3 max-w-[30ch] font-display text-5xl font-normal tracking-tight text-balance">Train a tiny model on a text you pick.</h2>
+                        <p class="mt-5 max-w-[48ch] text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">You give this page a .txt file, or one of the books already sitting here. It reads the words and remembers which ones tend to come next. Then you type a starting line and it tries to keep going.</p>
+                        <p class="mt-4 max-w-[48ch] text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">It is a toy. The sentences wander a lot. You can peek at why it picked each word if you want.</p>
+                        <p class="mt-4 max-w-[56ch] text-base/7 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Your file stays on this computer.</p>
+                        <div class="mt-8">
+                            <button type="button" id="startBtn" class="btn btn-primary">Choose a training text</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="step1" class="step is-hidden py-10 sm:py-16" aria-label="Choose training text">
+                    <div class="mx-auto max-w-5xl px-4 sm:px-6">
+                        <div id="trainIntro">
+                            <p class="font-mono text-base/6 text-orange-700 sm:text-sm/6 dark:text-orange-400">Step 1 of 3</p>
+                            <h2 id="step1-heading" class="mt-3 max-w-[30ch] font-display text-5xl font-normal tracking-tight text-balance">Choose the text you want to train the model on.</h2>
+                            <p class="mt-5 max-w-[48ch] text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">Upload a .txt file, or use a public-domain book. Longer files give the model more examples to copy from.</p>
+                        </div>
+
+                        <div id="savedModelBanner" class="saved-model-banner mt-10 is-hidden rounded-xl bg-zinc-50 p-4 ring-1 ring-zinc-950/10 sm:p-5 dark:bg-zinc-900 dark:ring-white/10" role="status">
+                            <p class="text-base/7 font-medium text-zinc-950 sm:text-sm/6 dark:text-zinc-100">This browser still has a model from last time.</p>
+                            <p class="mt-1 text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">You can keep writing with it, or throw it out and train on something else.</p>
+                            <div class="btn-group mt-4 flex flex-wrap gap-2">
+                                <button id="loadSavedModelBtn" class="btn btn-primary" type="button">Use the saved model</button>
+                                <button id="discardModelBtn" class="btn btn-secondary" type="button">Train on new text</button>
+                            </div>
+                        </div>
+
+                        <div id="uploadForm" class="mt-10">
+                            <div class="grid gap-6 lg:grid-cols-2 lg:gap-8">
+                                <div id="fileUploadArea" class="file-upload relative flex min-h-64 flex-col items-center justify-center rounded-xl bg-zinc-50 px-6 py-12 text-center ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:ring-white/10">
+                                    <input
+                                        type="file"
+                                        id="fileInput"
+                                        name="corpus"
+                                        accept=".txt,text/plain"
+                                        class="absolute inset-0 cursor-pointer opacity-0"
+                                        aria-label="Choose a text file to train the model"
+                                    >
+                                    <svg viewBox="0 0 16 16" fill="currentColor" class="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" aria-hidden="true">
+                                        <path d="M7.25 10.25a.75.75 0 0 0 1.5 0V4.64l2.22 2.22a.75.75 0 1 0 1.06-1.06l-3.5-3.5a.75.75 0 0 0-1.06 0l-3.5 3.5a.75.75 0 0 0 1.06 1.06l2.22-2.22v5.61Z" />
+                                        <path d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z" />
+                                    </svg>
+                                    <p id="file-upload-instructions" class="pointer-events-none mt-3 text-base/7 font-medium text-zinc-950 sm:text-sm/6 dark:text-zinc-100">Drop a .txt file here, or click to browse.</p>
+                                    <p class="pointer-events-none mt-1 max-w-[36ch] text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">A novel chapter works. So does a pile of notes, if that is what you have.</p>
+                                    <span id="uploadBtn" class="btn btn-secondary pointer-events-none mt-5">Browse files</span>
+                                </div>
+
+                                <div class="sample-corpora flex flex-col justify-center" aria-labelledby="sample-heading">
+                                    <h3 id="sample-heading" class="text-base/7 font-medium text-zinc-950 sm:text-sm/6 dark:text-zinc-100">Or use a book that is already here</h3>
+                                    <p class="mt-1 text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">These come from <a href="https://www.gutenberg.org/" class="text-zinc-950 underline decoration-zinc-950/20 underline-offset-4 dark:text-zinc-100 dark:decoration-white/20" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>. Click one and training starts.</p>
+                                    <div class="sample-btn-group mt-5 grid gap-3">
+                                        <button type="button" class="sample-card" id="sampleRomeoBtn" data-sample="romeo">
+                                            <span class="font-medium">Romeo and Juliet</span>
+                                            <span class="mt-1 block text-zinc-600 dark:text-zinc-400">William Shakespeare · complete play</span>
+                                        </button>
+                                        <button type="button" class="sample-card" id="sampleDraculaBtn" data-sample="dracula">
+                                            <span class="font-medium">Dracula</span>
+                                            <span class="mt-1 block text-zinc-600 dark:text-zinc-400">Bram Stoker · chapters I–V</span>
+                                        </button>
+                                    </div>
+                                    <details class="sample-attribution mt-5">
+                                        <summary class="cursor-pointer text-base/7 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Where these texts come from</summary>
+                                        <div class="mt-3 space-y-2 text-base/7 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+                                            <p>
+                                                <cite>Romeo and Juliet</cite> by William Shakespeare (complete play). Public domain.
+                                                Source: <a href="https://www.gutenberg.org/ebooks/1513" class="underline decoration-zinc-950/20 underline-offset-4 dark:decoration-white/20" target="_blank" rel="noopener noreferrer">Project Gutenberg eBook #1513</a>
+                                                (<a href="https://www.gutenberg.org/files/1513/1513-0.txt" class="underline decoration-zinc-950/20 underline-offset-4 dark:decoration-white/20" target="_blank" rel="noopener noreferrer">1513-0.txt</a>).
+                                            </p>
+                                            <p>
+                                                <cite>Dracula</cite> by Bram Stoker, Chapters I–V. Public domain in the United States (first published 1897).
+                                                Source: <a href="https://www.gutenberg.org/ebooks/345" class="underline decoration-zinc-950/20 underline-offset-4 dark:decoration-white/20" target="_blank" rel="noopener noreferrer">Project Gutenberg eBook #345</a>
+                                                (<a href="https://www.gutenberg.org/files/345/345-0.txt" class="underline decoration-zinc-950/20 underline-offset-4 dark:decoration-white/20" target="_blank" rel="noopener noreferrer">345-0.txt</a>).
+                                            </p>
+                                            <p>These copies omit Project Gutenberg headers and licenses, so they are not redistributed as Project Gutenberg eBooks.</p>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="progressBarContainer" class="mt-10 is-hidden" role="group" aria-labelledby="progress-label">
+                            <span id="progress-label" class="sr-only">Training progress</span>
+                            <div class="h-1.5 overflow-hidden rounded-full bg-zinc-950/10 dark:bg-white/10">
+                                <div
+                                    id="progressBar"
+                                    class="h-full rounded-full bg-orange-700 dark:bg-orange-400"
+                                    role="progressbar"
+                                    aria-valuemin="0"
+                                    aria-valuemax="100"
+                                    aria-valuenow="0"
+                                    aria-label="Model training progress"
+                                    style="--progress: 0%"
+                                ></div>
+                            </div>
+                            <p id="progressText" class="mt-3 text-base/7 text-zinc-600 sm:text-sm/6 dark:text-zinc-400" aria-live="polite">Getting ready...</p>
+                        </div>
+
+                        <div id="loadingContainer" class="loading-container mt-8 is-hidden" aria-busy="true">
+                            <p class="loading-text text-base/7 text-zinc-600 sm:text-sm/6 dark:text-zinc-400" aria-live="polite">Reading the file and counting word sequences.</p>
+                            <div class="loading-spinner" role="status" aria-label="Loading">
+                                <span class="sr-only">Training in progress...</span>
+                            </div>
+                        </div>
+
+                        <div id="modelStatus" class="mt-10 is-hidden" role="status" aria-live="polite">
+                            <p class="font-mono text-base/6 text-orange-700 sm:text-sm/6 dark:text-orange-400">Done</p>
+                            <h3 class="mt-2 font-display text-5xl font-normal tracking-tight text-balance">The model finished reading your text.</h3>
+                            <div id="modelStats" class="mt-8" aria-label="Model statistics"></div>
+                            <div class="button-group mt-8 flex flex-wrap gap-2">
+                                <button id="continueBtn" class="btn btn-primary" type="button">Write a prompt</button>
+                                <button id="saveModelBtn" class="btn btn-secondary" type="button">Save in this browser</button>
+                                <button id="chooseDifferentBtn" class="btn btn-secondary" type="button">Pick a different text</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="step2" class="step is-hidden py-10 sm:py-16" aria-labelledby="step2-heading">
+                    <div class="mx-auto max-w-5xl px-4 sm:px-6">
+                        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                            <div class="min-w-0">
+                                <p class="font-mono text-base/6 text-orange-700 sm:text-sm/6 dark:text-orange-400">Step 2 of 3</p>
+                                <h2 id="step2-heading" class="mt-3 max-w-[30ch] font-display text-5xl font-normal tracking-tight text-balance">Type a line for the model to continue.</h2>
+                                <p class="mt-5 max-w-[48ch] text-base/7 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">It will try to sound like the text you trained on. Temperature is how safely or randomly it picks the next word.</p>
+                            </div>
+                            <p id="studioModelSummary" class="shrink-0 text-base/7 text-zinc-500 sm:text-sm/6 dark:text-zinc-400"></p>
+                        </div>
+
+                        <div class="mt-10">
+                            <label for="promptInput" class="text-base/7 font-medium text-zinc-950 sm:text-sm/6 dark:text-zinc-100">Prompt</label>
+                            <textarea
+                                id="promptInput"
+                                name="prompt"
+                                rows="4"
+                                placeholder="Two households, both alike in dignity…"
+                                aria-describedby="prompt-help temperature-help"
+                                class="mt-2"
+                            ></textarea>
+                                <p id="prompt-help" class="sr-only">Type a starting line. Press Enter to generate. Shift+Enter adds a new line.</p>
+
+                            <div class="temperature-container mt-6">
+                                <div class="flex items-baseline justify-between gap-4">
+                                    <label for="temperatureInput" id="temperature-label" class="text-base/7 font-medium text-zinc-950 sm:text-sm/6 dark:text-zinc-100">
+                                        Temperature
+                                    </label>
+                                    <span id="temperatureValue" class="tabular-nums text-base/7 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">1.0</span>
+                                </div>
+                                <div class="mt-3 flex items-center gap-3">
+                                    <span class="shrink-0 text-base/7 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Predictable</span>
+                                    <input
+                                        type="range"
+                                        id="temperatureInput"
+                                        name="temperature"
+                                        min="0.1"
+                                        max="2"
+                                        step="0.1"
+                                        value="1.0"
+                                        aria-describedby="temperature-help"
+                                        class="min-w-0 grow"
+                                    >
+                                    <span class="shrink-0 text-base/7 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Surprising</span>
+                                </div>
+                                <p id="temperature-help" class="mt-2 max-w-[56ch] text-base/7 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Low stays close to the training text. High takes more chances.</p>
+                            </div>
+
+                            <div class="mt-6 flex flex-wrap items-center gap-2">
+                                <button id="generateBtn" class="btn btn-primary" type="button">Generate text</button>
+                                <button id="retrainBtn" class="btn btn-secondary" type="button">Train on different text</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="step3" class="step is-hidden pb-10 sm:pb-16" aria-labelledby="step3-heading">
+                    <div class="mx-auto max-w-5xl px-4 sm:px-6">
+                        <div class="border-t border-zinc-950/10 pt-10 dark:border-white/10">
+                            <h2 id="step3-heading" class="text-base/7 font-medium tracking-tight text-zinc-950 sm:text-sm/6 dark:text-zinc-100">What it wrote</h2>
+                            <div
+                                id="generatedText"
+                                class="mt-8"
+                                role="region"
+                                aria-labelledby="step3-heading"
+                                aria-live="polite"
+                            ></div>
+                            <div class="button-group mt-6 flex flex-wrap gap-2" role="group" aria-label="Result actions">
+                                <button id="explainReasoningBtn" class="btn btn-secondary is-hidden" type="button">Show why it picked each word</button>
+                                <button id="regenerateBtn" class="btn btn-secondary is-hidden" type="button">Try again</button>
+                                <button id="newPromptBtn" class="btn btn-secondary is-hidden" type="button">Change the prompt</button>
+                            </div>
+                            <div
+                                id="animatedExplanation"
+                                class="mt-8 is-hidden"
+                                role="region"
+                                aria-label="Word-by-word explanation of generated text"
+                                aria-live="polite"
+                            ></div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <footer class="mt-auto border-t border-zinc-950/10 dark:border-white/10">
+                <div class="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <a href="./" class="flex items-center gap-2" aria-label="Homepage" data-go-step="0">
+                        <img src="https://assets.ui.sh/marks/1.svg?color=orange-700" alt="" width="24" height="24" class="mark-light h-6 w-6 shrink-0">
+                        <img src="https://assets.ui.sh/marks/1.svg?color=orange-400" alt="" width="24" height="24" class="mark-dark h-6 w-6 shrink-0">
+                        <span class="text-base/6 font-medium tracking-tight sm:text-sm/6">Plain Text AI</span>
+                    </a>
+                    <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+                        Released under the <a href="https://opensource.org/licenses/MIT" class="text-zinc-600 dark:text-zinc-300" target="_blank" rel="noopener noreferrer">MIT license</a>.
+                        Hobby project by <a href="https://github.com/paugm" class="text-zinc-600 dark:text-zinc-300" target="_blank" rel="noopener noreferrer">Pau Garcia-Mila</a>.
+                        <a href="https://github.com/paugm/PlainTextAI" class="text-zinc-600 dark:text-zinc-300" target="_blank" rel="noopener noreferrer">Repository</a>.
+                    </p>
+                </div>
+            </footer>
+        </div>
+
+        <dialog id="mobileMenu" class="mobile-menu" aria-label="Menu">
+            <div class="flex items-center justify-between border-b border-zinc-950/10 px-4 py-4 dark:border-white/10">
+                <span class="text-base/6 font-semibold tracking-tight">Menu</span>
+                <button type="button" id="mobileMenuClose" class="relative text-zinc-950 dark:text-zinc-100" aria-label="Close menu">
+                    <svg viewBox="0 0 16 16" fill="currentColor" class="size-4 shrink-0" aria-hidden="true">
+                        <path d="M4.22 4.22a.75.75 0 0 1 1.06 0L8 6.94l2.72-2.72a.75.75 0 1 1 1.06 1.06L9.06 8l2.72 2.72a.75.75 0 1 1-1.06 1.06L8 9.06l-2.72 2.72a.75.75 0 0 1-1.06-1.06L6.94 8 4.22 5.28a.75.75 0 0 1 0-1.06Z" />
+                    </svg>
+                    <span class="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden" aria-hidden="true"></span>
+                </button>
             </div>
-        </footer>
+            <nav class="flex flex-col gap-1 p-2" aria-label="Mobile">
+                <button type="button" class="mobile-nav-link" data-go-step="0">What this is</button>
+                <button type="button" class="mobile-nav-link" data-go-step="1">Train</button>
+                <button type="button" class="mobile-nav-link" data-go-step="2">Write</button>
+                <button type="button" class="mobile-nav-link" data-go-step="3">Explore</button>
+                <a href="https://github.com/paugm/PlainTextAI" class="mobile-nav-link" target="_blank" rel="noopener noreferrer">GitHub</a>
+            </nav>
+        </dialog>
 
         <script src="samples.js" charset="utf-8"></script>
         <script src="PlainTextLMBuilder.js"></script>
