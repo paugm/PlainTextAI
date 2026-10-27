@@ -25,7 +25,7 @@ The model runs locally with [Transformers.js](https://huggingface.co/docs/transf
 
 ## Run it
 
-You need [Node.js](https://nodejs.org/) 20 or newer.
+Use [Node.js](https://nodejs.org/) 24, the version tested in CI.
 
 ```bash
 npm install
